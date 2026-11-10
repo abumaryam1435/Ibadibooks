@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 import { extractCleanApiKey } from '../../src/utils/apiKeyParser';
 import {
   detectScholarlyMode,
@@ -85,7 +85,14 @@ async function generateWithGeminiFallback(
     const ai = new GoogleGenAI({ apiKey });
     for (const model of candidateModels) {
       try {
-        const response = await ai.models.generateContent(buildParams(model));
+        const params = buildParams(model);
+        if (model === 'gemini-3.8-flash' && params.config) {
+          params.config = {
+            ...params.config,
+            thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+          };
+        }
+        const response = await ai.models.generateContent(params);
         if (response && response.text) {
           return { text: response.text, modelUsed: model };
         }

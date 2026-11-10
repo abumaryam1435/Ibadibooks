@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 import { proofreadAndVocalizeArabic } from './src/utils/arabicProofreader.ts';
 import { extractCleanApiKey } from './src/utils/apiKeyParser.ts';
 import {
@@ -70,7 +70,7 @@ async function callIbadiMCP(toolName: string, args: Record<string, any>): Promis
 
   const payload = {
     jsonrpc: '2.0',
-    id: Date.now(),
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     method: 'tools/call',
     params: {
       name: toolName,
@@ -86,6 +86,7 @@ async function callIbadiMCP(toolName: string, args: Record<string, any>): Promis
       'User-Agent': 'IbadiEncyclopediaMobileApp/2.0',
     },
     body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(8000),
   });
 
   if (!response.ok) {
@@ -630,7 +631,14 @@ async function generateWithFallback(
     });
     for (const model of candidateModels) {
       try {
-        const response = await ai.models.generateContent(buildParams(model));
+        const params = buildParams(model);
+        if (model === 'gemini-3.8-flash' && params.config) {
+          params.config = {
+            ...params.config,
+            thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+          };
+        }
+        const response = await ai.models.generateContent(params);
         if (response && response.text) {
           return { text: response.text, modelUsed: model };
         }

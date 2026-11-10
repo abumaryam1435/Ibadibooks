@@ -1704,25 +1704,27 @@ export default function App() {
               </div>
             )}
 
-            {/* Multi-Turn Conversation Thread */}
-            {aiMessages.length > 0 && (
+            {/* Multi-Turn Conversation Thread (Realistic Gemini / Claude Style Chat) */}
+            {(aiMessages.length > 0 || aiLoading) && (
               <div className="space-y-4">
                 {aiMessages.map((msg) => {
                   if (msg.role === 'user') {
                     return (
                       <div
                         key={msg.id}
-                        className="p-3.5 rounded-2xl bg-[#d4af37]/15 border border-[#d4af37]/40 space-y-1.5"
+                        className="p-3.5 sm:p-4 rounded-2xl bg-[#d4af37]/15 border border-[#d4af37]/40 space-y-1.5"
                       >
                         <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
-                          <span className="font-extrabold text-[#d4af37]">سؤالك / طلبك العلمي:</span>
+                          <span className="font-extrabold text-[#d4af37] flex items-center gap-1.5">
+                            <span>أنت (السائل)</span>
+                          </span>
                           {msg.scopedBookName && (
                             <span className="px-2 py-0.5 rounded-md bg-black/20 text-[#d4af37] font-bold break-words">
                               كتاب: {msg.scopedBookName}
                             </span>
                           )}
                         </div>
-                        <p className="font-bold text-sm leading-relaxed break-words">{msg.content}</p>
+                        <p className="font-bold text-sm sm:text-base leading-relaxed break-words">{msg.content}</p>
                       </div>
                     );
                   }
@@ -1733,25 +1735,78 @@ export default function App() {
                   const ansCopyKey = `${msg.id}-answer`;
                   const fullCopyKey = `${msg.id}-full`;
 
+                  // Render inline formatting: **bold**, *(citation)*, and ﴿Quranic verse﴾
+                  const renderInlineRichText = (lineText: string) => {
+                    const tokens = lineText.split(/(\*\*[^*]+\*\*|\*\([^)]+\)\*|﴿[^﴾]+﴾)/g);
+                    return tokens.map((tok, tIdx) => {
+                      if (!tok) return null;
+                      if (tok.startsWith('**') && tok.endsWith('**') && tok.length > 4) {
+                        return (
+                          <strong key={tIdx} className="font-extrabold text-[#d4af37]">
+                            {tok.slice(2, -2)}
+                          </strong>
+                        );
+                      }
+                      if (tok.startsWith('*(') && tok.endsWith(')*') && tok.length > 4) {
+                        return (
+                          <span
+                            key={tIdx}
+                            className="inline-block mx-1 px-2 py-0.5 rounded-md bg-[#d4af37]/10 border border-[#d4af37]/25 text-[#d4af37] text-xs sm:text-sm font-sans font-bold"
+                          >
+                            {tok.slice(1, -1)}
+                          </span>
+                        );
+                      }
+                      if (tok.startsWith('﴿') && tok.endsWith('﴾')) {
+                        return (
+                          <span
+                            key={tIdx}
+                            className="inline mx-0.5 px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-bold"
+                          >
+                            {tok}
+                          </span>
+                        );
+                      }
+                      return <React.Fragment key={tIdx}>{tok}</React.Fragment>;
+                    });
+                  };
+
+                  const formattedLines = String(resp.answer || '')
+                    .replace(/^\s*═+\s*$/gm, '')
+                    .replace(/^\s*─+\s*$/gm, '')
+                    .split('\n');
+
                   return (
                     <div key={msg.id} className="space-y-3">
                       <div className={`p-3.5 sm:p-5 rounded-2xl border space-y-4 overflow-hidden ${themeClasses.cardBg}`}>
-                        {/* Top Action Bar for Copying & Bookmarking AI Answer */}
+                        {/* Top Action Bar for AI Assistant Identity, Copying & Bookmarking */}
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-white/10 pb-3">
-                          <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-                            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                            <span className="text-xs font-extrabold text-[#d4af37]">
-                              {resp.modeLabel || 'إجابة علمية موثقة'}
-                            </span>
-                            {resp.matchedBook ? (
-                              <span className="px-2 py-0.5 rounded-md bg-[#d4af37]/20 text-[#d4af37] text-[10px] font-bold break-words">
-                                حصرياً من كتاب: {resp.matchedBook.title}
-                              </span>
-                            ) : (
-                              <span className="text-[11px] opacity-80">
-                                ({resp.sources.length} صفحات • {resp.fatawaSources.length} فتاوى)
-                              </span>
-                            )}
+                          <div className="flex flex-wrap items-center gap-2 min-w-0">
+                            <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-[#d4af37] to-[#9a7b1c] text-black flex items-center justify-center shrink-0 shadow-xs">
+                              <Sparkles className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="text-xs sm:text-sm font-extrabold text-[#d4af37]">
+                                  المساعد الذكي للموسوعة
+                                </span>
+                                <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold">
+                                  {resp.modeLabel || 'صياغة ذكية مستندة للموسوعة'}
+                                </span>
+                              </div>
+                              <div className="text-[11px] opacity-80 mt-0.5">
+                                {resp.matchedBook ? (
+                                  <span>مستند حصرياً إلى كتاب: «{resp.matchedBook.title}»</span>
+                                ) : (
+                                  <span>
+                                    صياغة تحليلية مستندة إلى ({resp.sources.length}) مراجع من الكتب
+                                    {resp.fatawaSources.length > 0
+                                      ? ` و(${resp.fatawaSources.length}) فتاوى`
+                                      : ''}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
                           </div>
 
                           <div className="flex items-center gap-1.5 w-full sm:w-auto">
@@ -1768,7 +1823,7 @@ export default function App() {
                               ) : (
                                 <>
                                   <Copy className="w-3.5 h-3.5 shrink-0" />
-                                  <span>نسخ النص</span>
+                                  <span>نسخ الإجابة</span>
                                 </>
                               )}
                             </button>
@@ -1816,9 +1871,51 @@ export default function App() {
                           </div>
                         </div>
 
-                        {/* Formatted Answer Text (Mobile-fitted right-aligned on narrow screens, no ugly spacing gaps) */}
-                        <div className="font-naskh text-base sm:text-lg leading-[2.0] sm:leading-[2.1] whitespace-pre-line text-right sm:text-justify break-words overflow-x-hidden select-text">
-                          {resp.answer}
+                        {/* Rich Conversational AI Answer Renderer (Headings, Bold Concepts, Quranic Verses & Citations) */}
+                        <div className="font-naskh text-base sm:text-lg leading-[2.0] sm:leading-[2.1] text-right break-words overflow-x-hidden select-text space-y-2.5">
+                          {formattedLines.map((rawLine, lIdx) => {
+                            const line = rawLine.trim();
+                            if (!line) {
+                              return <div key={lIdx} className="h-1" />;
+                            }
+                            if (line.startsWith('### ')) {
+                              const headingText = line.replace(/^###\s+/, '');
+                              return (
+                                <h4
+                                  key={lIdx}
+                                  className="font-sans font-extrabold text-sm sm:text-base text-[#d4af37] pt-2 pb-1 border-b border-[#d4af37]/20 flex items-center gap-1.5"
+                                >
+                                  <span>{headingText}</span>
+                                </h4>
+                              );
+                            }
+                            if (line.startsWith('## ') || line.startsWith('# ')) {
+                              const headingText = line.replace(/^#+\s+/, '');
+                              return (
+                                <h3
+                                  key={lIdx}
+                                  className="font-sans font-extrabold text-base sm:text-lg text-[#d4af37] pt-2 pb-1 border-b border-[#d4af37]/30"
+                                >
+                                  {headingText}
+                                </h3>
+                              );
+                            }
+                            if (/^(?:•|-|\*|\d+[.-]|[١٢٣٤٥٦٧٨٩٠]+[.-])\s+/.test(line)) {
+                              return (
+                                <div
+                                  key={lIdx}
+                                  className="pr-2 sm:pr-3 py-1 border-r-2 border-[#d4af37]/35 leading-[2.0]"
+                                >
+                                  {renderInlineRichText(line)}
+                                </div>
+                              );
+                            }
+                            return (
+                              <p key={lIdx} className="leading-[2.05]">
+                                {renderInlineRichText(line)}
+                              </p>
+                            );
+                          })}
                         </div>
 
                         {/* Interactive Artifact Studio: Infographic PNG, PowerPoint PPTX, Word DOC, and PDF */}
@@ -1828,7 +1925,7 @@ export default function App() {
                         {resp.followUpSuggestions && resp.followUpSuggestions.length > 0 && (
                           <div className="pt-3 border-t border-white/10 space-y-2">
                             <span className="text-xs font-bold text-[#d4af37] block">
-                              أسئلة وطلبات متابعة مقترحة في نفس الموضوع:
+                              تابع النقاش مع المساعد الذكي (اضغط على أي سؤال أو اكتب سؤالك بالأسفل):
                             </span>
                             <div className="grid grid-cols-1 sm:flex sm:flex-wrap gap-1.5">
                               {resp.followUpSuggestions.map((sug) => (
@@ -1859,7 +1956,7 @@ export default function App() {
                             <h3 className="text-xs font-bold text-[#d4af37] flex items-center gap-1.5">
                               <BookOpen className="w-4 h-4 shrink-0" />
                               <span>
-                                الصفحات المعتمدة من كتب الموسوعة (اضغط لفتح الصفحة في القارئ):
+                                المراجع التي استند إليها المساعد في صياغة الإجابة (اضغط لفتح الصفحة في الكتاب):
                               </span>
                             </h3>
                             <div className="grid grid-cols-1 gap-2">
@@ -1913,7 +2010,7 @@ export default function App() {
                           <div className="pt-3 border-t border-white/10 space-y-2">
                             <h3 className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
                               <MessageSquareQuote className="w-4 h-4 shrink-0" />
-                              <span>الفتاوى المعتمدة من خزانة الفتاوى (اضغط لفتح الفتوى):</span>
+                              <span>الفتاوى التي استند إليها المساعد في الإجابة (اضغط لفتح الفتوى):</span>
                             </h3>
                             <div className="grid grid-cols-1 gap-2">
                               {resp.fatawaSources.map((f) => (
@@ -1942,6 +2039,69 @@ export default function App() {
                     </div>
                   );
                 })}
+
+                {/* Live AI Thinking / Synthesizing Bubble inside the Thread */}
+                {aiLoading && (
+                  <div className={`p-4 rounded-2xl border flex items-center gap-3 ${themeClasses.cardBg}`}>
+                    <div className="w-8 h-8 rounded-xl bg-[#d4af37]/20 border border-[#d4af37]/40 flex items-center justify-center shrink-0">
+                      <Loader2 className="w-4 h-4 animate-spin text-[#d4af37]" />
+                    </div>
+                    <div className="space-y-0.5 min-w-0 flex-1">
+                      <div className="text-xs font-extrabold text-[#d4af37]">
+                        المساعد الذكي يقرأ مصادر الموسوعة ويصوغ الإجابة بأسلوبه...
+                      </div>
+                      <div className={`text-[11px] ${themeClasses.mutedText}`}>
+                        يتم الآن تحليل المتون والفتاوى ذات الصلة وتوليد شرح علمي متكامل وموثق
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Bottom Conversational Follow-Up Input Bar (Just like Gemini / Claude Chat) */}
+                {aiMessages.length > 0 && (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (aiQuestion.trim() && !aiLoading) {
+                        handleAskAI();
+                      }
+                    }}
+                    className={`p-3 rounded-2xl border space-y-2.5 shadow-lg ${themeClasses.cardBg}`}
+                  >
+                    <div className="flex items-center justify-between gap-2 text-[11px]">
+                      <span className="font-bold text-[#d4af37] flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                        <span>متابعة الحوار مع المساعد الذكي:</span>
+                      </span>
+                      {aiScopedBook && (
+                        <span className="text-[10px] opacity-80 truncate">
+                          في نطاق: {aiScopedBook.name}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                      <input
+                        type="text"
+                        value={aiQuestion}
+                        onChange={(e) => setAiQuestion(e.target.value)}
+                        placeholder="اكتب سؤال متابعة، أو اطلب توضيح نقطة، أو تحويل الإجابة لعرض/إنفوجرافيك..."
+                        className={`flex-1 min-w-0 w-full px-3.5 py-2.5 rounded-xl border text-xs sm:text-sm focus:border-[#d4af37] focus:outline-none ${themeClasses.inputBg}`}
+                      />
+                      <button
+                        type="submit"
+                        disabled={aiLoading || !aiQuestion.trim()}
+                        className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-gradient-to-l from-[#d4af37] to-[#b89225] text-black font-extrabold text-xs flex items-center justify-center gap-1.5 disabled:opacity-40 shrink-0 shadow-sm active:scale-95 transition"
+                      >
+                        {aiLoading ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Send className="w-4 h-4" />
+                        )}
+                        <span>إرسال في المحادثة</span>
+                      </button>
+                    </div>
+                  </form>
+                )}
               </div>
             )}
           </main>
