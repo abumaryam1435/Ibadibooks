@@ -1,0 +1,152 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-cairo: 'Cairo', system-ui, -apple-system, sans-serif;
+    --font-naskh: 'Noto Naskh Arabic', Georgia, serif;
+    --font-amiri: 'Amiri', 'Traditional Arabic', serif;
+  }
+}
+
+body {
+  font-family: var(--font-cairo);
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: contain;
+}
+
+.font-naskh {
+  font-family: var(--font-naskh);
+}
+
+.font-amiri {
+  font-family: var(--font-amiri);
+}
+
+.font-cairo {
+  font-family: var(--font-cairo);
+}
+
+/* Custom scrollbars for phone and desktop */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(180, 160, 120, 0.25);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(180, 160, 120, 0.45);
+}
+
+/* Safe areas for mobile viewports */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 16px);
+}
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 16px);
+}
+
+/* High-contrast search term highlighting (WCAG AAA 13:1 contrast across Night, OLED, Sepia, and Day modes) */
+mark,
+.search-highlight {
+  background-color: #fbbf24 !important;
+  color: #09090b !important;
+  font-weight: 800 !important;
+  padding: 0.08em 0.38em;
+  margin: 0 0.05em;
+  border-radius: 0.375rem;
+  border: 1px solid #d97706;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+/* ==========================================================================
+   CRYSTAL-CLEAR HIGH-CONTRAST TYPOGRAPHY FOR SEPIA (ورق تراثي) & DAY (نهاري)
+   Ensures all text, headings, Quranic verses, and badges are razor-sharp
+   ========================================================================== */
+.theme-sepia {
+  color: #1a1107 !important;
+}
+.theme-sepia .font-naskh,
+.theme-sepia .font-amiri {
+  color: #140c04 !important;
+  font-weight: 500;
+}
+.theme-sepia .text-\[\#d4af37\]:not(.bg-\[\#d4af37\]) {
+  color: #784f04 !important;
+}
+.theme-sepia .text-emerald-400,
+.theme-sepia .text-emerald-300 {
+  color: #065f46 !important;
+}
+.theme-sepia .text-amber-300,
+.theme-sepia .text-amber-400 {
+  color: #92400e !important;
+}
+.theme-sepia .opacity-70,
+.theme-sepia .opacity-75,
+.theme-sepia .opacity-80,
+.theme-sepia .opacity-85 {
+  opacity: 0.94 !important;
+  color: #3b2a18;
+}
+.theme-sepia .bg-white\/5,
+.theme-sepia .bg-white\/10,
+.theme-sepia .bg-black\/15,
+.theme-sepia .bg-black\/20,
+.theme-sepia .bg-black\/25,
+.theme-sepia .bg-black\/30 {
+  background-color: rgba(120, 83, 15, 0.09) !important;
+  color: #1a1107 !important;
+}
+.theme-sepia .border-white\/10,
+.theme-sepia .border-white\/15,
+.theme-sepia .border-white\/20 {
+  border-color: rgba(120, 83, 15, 0.28) !important;
+}
+
+.theme-day {
+  color: #0f1419 !important;
+}
+.theme-day .font-naskh,
+.theme-day .font-amiri {
+  color: #090d12 !important;
+  font-weight: 500;
+}
+.theme-day .text-\[\#d4af37\]:not(.bg-\[\#d4af37\]) {
+  color: #7c5405 !important;
+}
+.theme-day .text-emerald-400,
+.theme-day .text-emerald-300 {
+  color: #046c4e !important;
+}
+.theme-day .text-amber-300,
+.theme-day .text-amber-400 {
+  color: #92400e !important;
+}
+.theme-day .opacity-70,
+.theme-day .opacity-75,
+.theme-day .opacity-80,
+.theme-day .opacity-85 {
+  opacity: 0.94 !important;
+  color: #27303f;
+}
+.theme-day .bg-white\/5,
+.theme-day .bg-white\/10,
+.theme-day .bg-black\/15,
+.theme-day .bg-black\/20,
+.theme-day .bg-black\/25,
+.theme-day .bg-black\/30 {
+  background-color: rgba(15, 23, 42, 0.06) !important;
+  color: #0f1419 !important;
+}
+.theme-day .border-white\/10,
+.theme-day .border-white\/15,
+.theme-day .border-white\/20 {
+  border-color: rgba(15, 23, 42, 0.18) !important;
+}

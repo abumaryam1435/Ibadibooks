@@ -1,0 +1,8 @@
+{
+  "name": "الموسوعة الإباضية الشاملة والباحث الذكي",
+  "description": "تطبيق محمول متقدم لتصفح كتب الموسوعة الإباضية، والبحث المتقدم في متونها وفتاواها، مع باحث ذكي دقيق موثق بالأجزاء والصفحات عبر Gemini AI",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
