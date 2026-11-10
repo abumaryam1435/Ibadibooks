@@ -1,27 +1,114 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#171920"/>
-      <stop offset="100%" stop-color="#0c0d11"/>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d2622" />
+      <stop offset="50%" stop-color="#0b1720" />
+      <stop offset="100%" stop-color="#070c12" />
     </linearGradient>
-    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#f3d266"/>
-      <stop offset="50%" stop-color="#d4af37"/>
-      <stop offset="100%" stop-color="#9e7b18"/>
+    <linearGradient id="logoGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fae08c" />
+      <stop offset="45%" stop-color="#dfb852" />
+      <stop offset="100%" stop-color="#9e7419" />
     </linearGradient>
+    <linearGradient id="logoEmerald" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#047857" />
+    </linearGradient>
+    <linearGradient id="logoPageR" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#e7c97a" />
+      <stop offset="100%" stop-color="#fff8e7" />
+    </linearGradient>
+    <linearGradient id="logoPageL" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#fff8e7" />
+      <stop offset="100%" stop-color="#e7c97a" />
+    </linearGradient>
+    <radialGradient id="haloGrad" cx="50%" cy="45%" r="48%">
+      <stop offset="0%" stop-color="#d4af37" stop-opacity="0.22" />
+      <stop offset="100%" stop-color="#d4af37" stop-opacity="0" />
+    </radialGradient>
   </defs>
-  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
-  <rect x="28" y="28" width="456" height="456" rx="92" fill="none" stroke="url(#gold)" stroke-width="6" stroke-opacity="0.35"/>
-  <!-- Islamic Arch & Open Encyclopedia Book -->
-  <path d="M256 86 L346 146 L346 210 L166 210 L166 146 Z" fill="none" stroke="url(#gold)" stroke-width="14" stroke-linejoin="round"/>
-  <circle cx="256" cy="148" r="16" fill="url(#gold)"/>
-  <!-- Open Book Pages -->
-  <path d="M116 200 C166 188, 220 202, 256 226 C292 202, 346 188, 396 200 L396 382 C346 370, 292 384, 256 408 C220 384, 166 370, 116 382 Z" fill="none" stroke="url(#gold)" stroke-width="20" stroke-linejoin="round"/>
-  <line x1="256" y1="226" x2="256" y2="408" stroke="url(#gold)" stroke-width="16" stroke-linecap="round"/>
-  <line x1="152" y1="256" x2="224" y2="266" stroke="url(#gold)" stroke-width="12" stroke-linecap="round"/>
-  <line x1="152" y1="296" x2="224" y2="306" stroke="url(#gold)" stroke-width="12" stroke-linecap="round"/>
-  <line x1="152" y1="336" x2="224" y2="346" stroke="url(#gold)" stroke-width="12" stroke-linecap="round"/>
-  <line x1="360" y1="256" x2="288" y2="266" stroke="url(#gold)" stroke-width="12" stroke-linecap="round"/>
-  <line x1="360" y1="296" x2="288" y2="306" stroke="url(#gold)" stroke-width="12" stroke-linecap="round"/>
-  <line x1="360" y1="336" x2="288" y2="346" stroke="url(#gold)" stroke-width="12" stroke-linecap="round"/>
+
+  <!-- Full-bleed background for OS icon squircle/circle masking -->
+  <rect width="512" height="512" fill="url(#bgGrad)" />
+  <circle cx="256" cy="240" r="220" fill="url(#haloGrad)" />
+
+  <!-- Balanced Emblem Group (84% scale centered at 256,256 for ideal home screen icon proportions) -->
+  <g transform="translate(256, 256) scale(0.84) translate(-256, -250)">
+    <!-- Subtle 8-Pointed Star Watermark -->
+    <g opacity="0.16" stroke="url(#logoGold)" stroke-width="5" fill="none">
+      <rect x="126" y="126" width="260" height="260" rx="14" />
+      <rect x="126" y="126" width="260" height="260" rx="14" transform="rotate(45 256 256)" />
+    </g>
+
+    <!-- Pointed Islamic Mihrab Arch -->
+    <path
+      d="M104 402 L104 205 C104 122 178 72 256 44 C334 72 408 122 408 205 L408 402"
+      fill="none"
+      stroke="url(#logoGold)"
+      stroke-width="12"
+      stroke-linecap="round"
+      opacity="0.82"
+    />
+
+    <!-- 5-Pointed Star of Knowledge -->
+    <path
+      d="M256 68 L264 90 L288 90 L269 104 L276 126 L256 113 L236 126 L243 104 L224 90 L248 90 Z"
+      fill="url(#logoGold)"
+    />
+
+    <!-- Knowledge Rays -->
+    <g stroke="url(#logoGold)" stroke-width="8" stroke-linecap="round" opacity="0.88">
+      <line x1="256" y1="138" x2="256" y2="170" />
+      <line x1="204" y1="148" x2="218" y2="176" />
+      <line x1="308" y1="148" x2="294" y2="176" />
+    </g>
+
+    <!-- Emerald Book Cover Base -->
+    <path
+      d="M72 222 C136 204 210 220 256 250 C302 220 376 204 440 222 L440 390 C376 372 302 388 256 416 C210 388 136 372 72 390 Z"
+      fill="url(#logoEmerald)"
+      stroke="url(#logoGold)"
+      stroke-width="12"
+      stroke-linejoin="round"
+    />
+
+    <!-- Open Manuscript Pages -->
+    <path
+      d="M90 200 C148 182 214 198 256 230 L256 394 C214 364 148 348 90 366 Z"
+      fill="url(#logoPageL)"
+      stroke="url(#logoGold)"
+      stroke-width="8"
+      stroke-linejoin="round"
+    />
+    <path
+      d="M422 200 C364 182 298 198 256 230 L256 394 C298 364 364 348 422 366 Z"
+      fill="url(#logoPageR)"
+      stroke="url(#logoGold)"
+      stroke-width="8"
+      stroke-linejoin="round"
+    />
+
+    <!-- Center Spine -->
+    <line x1="256" y1="226" x2="256" y2="398" stroke="#9e7419" stroke-width="10" stroke-linecap="round" />
+
+    <!-- Manuscript Text Lines -->
+    <g stroke="#784f04" stroke-width="10" stroke-linecap="round" opacity="0.88">
+      <line x1="388" y1="242" x2="288" y2="258" />
+      <line x1="388" y1="280" x2="288" y2="296" />
+      <line x1="388" y1="318" x2="288" y2="334" />
+      <line x1="124" y1="242" x2="224" y2="258" />
+      <line x1="124" y1="280" x2="224" y2="296" />
+      <line x1="124" y1="318" x2="224" y2="334" />
+    </g>
+
+    <!-- Traditional Rehal Stand -->
+    <path
+      d="M140 444 L256 400 L372 444"
+      fill="none"
+      stroke="url(#logoGold)"
+      stroke-width="18"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+  </g>
 </svg>

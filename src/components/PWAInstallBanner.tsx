@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Download, Smartphone, Share, PlusSquare, CheckCircle2, X, WifiOff, MoreVertical } from 'lucide-react';
+import { AppLogo } from './AppLogo';
 
 interface BeforeInstallPromptEvent extends Event {
   readonly platforms: string[];
@@ -100,11 +101,7 @@ export const PWAInstallBanner: React.FC<PWAInstallBannerProps> = ({
         <section className={`p-4 rounded-2xl border space-y-3 ${themeCardClass}`}>
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
-              <img
-                src="/pwa-192x192.png"
-                alt="أيقونة تطبيق الموسوعة الإباضية"
-                className="w-14 h-14 rounded-2xl border border-[#d4af37]/40 shadow-md shrink-0"
-              />
+              <AppLogo size="lg" />
               <div className="space-y-1 min-w-0">
                 <h2 className="font-bold text-sm text-[#d4af37] flex items-center gap-1.5">
                   <Smartphone className="w-4 h-4 shrink-0" />
@@ -143,11 +140,7 @@ export const PWAInstallBanner: React.FC<PWAInstallBannerProps> = ({
           <div className="w-full max-w-md rounded-3xl bg-[#16181e] border border-[#d4af37]/40 text-[#e3ded4] p-5 space-y-4 shadow-2xl">
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <div className="flex items-center gap-2.5">
-                <img
-                  src="/pwa-192x192.png"
-                  alt="أيقونة الموسوعة الإباضية"
-                  className="w-11 h-11 rounded-2xl border border-[#d4af37]/40 shadow-md"
-                />
+                <AppLogo size="md" />
                 <div>
                   <h3 className="font-bold text-sm text-[#d4af37]">
                     تثبيت تطبيق الموسوعة على شاشة الهاتف

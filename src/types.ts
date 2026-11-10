@@ -7,7 +7,41 @@ export type AIChatMode =
   | 'article'
   | 'tafsir_hadith'
   | 'khutbah'
-  | 'lesson';
+  | 'lesson'
+  | 'infographic'
+  | 'presentation'
+  | 'document';
+
+export type AIArtifactType = 'infographic' | 'pptx' | 'word' | 'pdf' | null;
+
+export interface AIInfographicNode {
+  number: string;
+  title: string;
+  summary: string;
+  sourceRef: string;
+}
+
+export interface AIInfographicData {
+  title: string;
+  subtitle: string;
+  badge: string;
+  centralTheme: string;
+  nodes: AIInfographicNode[];
+  goldenQuote?: {
+    text: string;
+    source: string;
+  };
+  footerNote: string;
+}
+
+export interface AISlideItem {
+  slideNumber: number;
+  title: string;
+  subtitle?: string;
+  bullets: string[];
+  quote?: string;
+  sourceRef?: string;
+}
 
 export interface CatalogBook {
   id: number;
@@ -109,6 +143,7 @@ export interface AIResearchResponse {
   question: string;
   modeUsed?: AIChatMode;
   modeLabel?: string;
+  requestedArtifact?: AIArtifactType;
   coreTopic?: string;
   searchQueryUsed: string;
   matchedBook?: {
@@ -119,6 +154,8 @@ export interface AIResearchResponse {
     era?: string;
   } | null;
   answer: string;
+  infographicData?: AIInfographicData;
+  slidesData?: AISlideItem[];
   followUpSuggestions?: string[];
   sources: AISourcePage[];
   fatawaSources: AISourceFatwa[];

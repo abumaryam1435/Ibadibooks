@@ -33,6 +33,8 @@ import {
   FileText,
   Mic,
   GraduationCap,
+  Image as ImageIcon,
+  Presentation,
 } from 'lucide-react';
 import {
   CatalogBook,
@@ -50,10 +52,14 @@ import { BookReaderModal } from './components/BookReaderModal';
 import { FatwaReaderModal } from './components/FatwaReaderModal';
 import { PWAInstallBanner } from './components/PWAInstallBanner';
 import { BookCover } from './components/BookCover';
+import { AppLogo } from './components/AppLogo';
+import { ChatArtifactStudio } from './components/ChatArtifactStudio';
 import { getCategoriesSummary, searchLocalCatalog } from './services/localCatalog';
 import { copyTextToClipboard } from './utils/clipboard';
 import { proofreadAndVocalizeArabic } from './utils/arabicProofreader';
 import { extractCleanApiKey, AIProviderType } from './utils/apiKeyParser';
+import { apiFetch } from './utils/netlifyClientBridge';
+
 
 export default function App() {
   // Navigation & Theme State
@@ -183,7 +189,7 @@ export default function App() {
 
   // Check Server AI Key Status
   useEffect(() => {
-    fetch('/api/ai/status')
+    apiFetch('/api/ai/status')
       .then((r) => r.json())
       .then((data) => {
         setHasServerKey(Boolean(data.hasServerKey));
@@ -280,7 +286,7 @@ export default function App() {
         if (bookToFilter) {
           params.set('book_id', String(bookToFilter.id));
         }
-        const res = await fetch(`/api/search/titles?${params.toString()}`);
+        const res = await apiFetch(`/api/search/titles?${params.toString()}`);
         if (res.ok) {
           const data = await res.json();
           const newItems = data.results || [];
@@ -300,7 +306,7 @@ export default function App() {
         if (bookToFilter) {
           params.set('book_id', String(bookToFilter.id));
         }
-        const res = await fetch(`/api/search/pages?${params.toString()}`);
+        const res = await apiFetch(`/api/search/pages?${params.toString()}`);
         if (res.ok) {
           const data = await res.json();
           const newItems = data.results || [];
@@ -324,7 +330,7 @@ export default function App() {
     setVerifyingQuote(true);
     setQuoteVerification(null);
     try {
-      const res = await fetch('/api/verify-quote', {
+      const res = await apiFetch('/api/verify-quote', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ quote: quoteInput.trim() }),
@@ -382,7 +388,7 @@ export default function App() {
         bookId: m.response?.matchedBook?.id || (m.scopedBookName ? bookToUse?.id : undefined),
       }));
 
-      const res = await fetch('/api/ai/ask', {
+      const res = await apiFetch('/api/ai/ask', {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -472,7 +478,7 @@ export default function App() {
     if (!qStr.trim()) return;
     setLoadingFatawa(true);
     try {
-      const res = await fetch(`/api/search/fatawa?q=${encodeURIComponent(qStr.trim())}&limit=16`);
+      const res = await apiFetch(`/api/search/fatawa?q=${encodeURIComponent(qStr.trim())}&limit=16`);
       if (res.ok) {
         const data = await res.json();
         setFatwaResults(data.results || []);
@@ -548,56 +554,23 @@ export default function App() {
         <header
           className={`sticky top-0 z-30 px-3 sm:px-5 py-2.5 sm:py-3 border-b backdrop-blur-md transition-colors ${themeClasses.headerBg}`}
         >
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            {/* Brand Title & Stats */}
+          <div className="flex items-center justify-between gap-2.5">
+            {/* Brand Title & Official Encyclopedia Emblem — Full width, zero clutter */}
             <div className="flex items-center gap-2.5 min-w-0 flex-1">
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-br from-[#d4af37] to-[#9b7819] flex items-center justify-center text-black shadow-md shrink-0">
-                <Library className="w-5 h-5 stroke-[2.2]" />
-              </div>
-              <div className="min-w-0">
-                <h1 className="font-bold text-sm sm:text-base leading-tight truncate">
+              <AppLogo size="md" showBadge />
+              <div className="min-w-0 flex-1">
+                <h1 className="font-extrabold text-base sm:text-lg leading-snug break-words">
                   الموسوعة الإباضية الشاملة
                 </h1>
-                <p className={`text-[10px] sm:text-xs truncate ${themeClasses.mutedText}`}>
+                <p className={`text-[11px] sm:text-xs leading-normal break-words ${themeClasses.mutedText}`}>
                   ٢٬٩٣١ كتاباً • ١٬٨١٦ موافق للمطبوع • ٣٠٬١٧٣ فتوى
                 </p>
               </div>
             </div>
 
-            {/* Action Buttons (Mobile Thumb-Friendly & Desktop Ready) */}
-            <div className="flex items-center gap-1.5 shrink-0">
-              {/* PWA Home Screen Install Button */}
+            {/* Optional Home Screen Install Button (Hidden automatically once installed) */}
+            <div className="shrink-0">
               <PWAInstallBanner variant="header-button" />
-
-              {/* API Key Status Button (Supports Gemini & Claude) */}
-              <button
-                onClick={() => setIsApiModalOpen(true)}
-                className="px-2.5 py-1.5 min-h-[36px] rounded-xl text-[11px] sm:text-xs font-bold flex items-center gap-1 border transition active:scale-95 bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
-                title="إعدادات الذكاء الاصطناعي (Gemini & Claude + المحرك المجاني المدمج)"
-              >
-                <Bot className="w-3.5 h-3.5 shrink-0" />
-                <span>
-                  {claudeApiKey && (preferredProvider === 'claude' || !userApiKey)
-                    ? 'Claude مفعل'
-                    : userApiKey
-                    ? 'Gemini مفعل'
-                    : 'Gemini / Claude'}
-                </span>
-              </button>
-
-              {/* Quick Eye-Comfort Theme Switcher */}
-              <button
-                onClick={cycleTheme}
-                className="px-2.5 py-1.5 min-h-[36px] rounded-xl border border-[#d4af37]/30 bg-[#d4af37]/10 text-[#d4af37] text-[11px] sm:text-xs font-bold flex items-center gap-1 transition active:scale-95"
-                title="تبديل وضع القراءة وراحة العين"
-              >
-                {themeMode === 'day' ? (
-                  <Sun className="w-3.5 h-3.5 shrink-0" />
-                ) : (
-                  <Moon className="w-3.5 h-3.5 shrink-0" />
-                )}
-                <span>{themeLabels[themeMode]}</span>
-              </button>
             </div>
           </div>
 
@@ -881,30 +854,30 @@ export default function App() {
             <div className={`p-1 rounded-2xl border grid grid-cols-3 gap-1 ${themeClasses.cardBg}`}>
               <button
                 onClick={() => setSearchModeTab('pages')}
-                className={`py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition ${
+                className={`py-2 px-1 rounded-xl text-[11px] sm:text-xs font-bold flex items-center justify-center gap-1 transition ${
                   searchModeTab === 'pages' ? 'bg-[#d4af37] text-black' : 'opacity-75'
                 }`}
               >
-                <Search className="w-3.5 h-3.5" />
-                <span>المتون والحواشي</span>
+                <Search className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">المتون والحواشي</span>
               </button>
               <button
                 onClick={() => setSearchModeTab('titles')}
-                className={`py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition ${
+                className={`py-2 px-1 rounded-xl text-[11px] sm:text-xs font-bold flex items-center justify-center gap-1 transition ${
                   searchModeTab === 'titles' ? 'bg-[#d4af37] text-black' : 'opacity-75'
                 }`}
               >
-                <ListTree className="w-3.5 h-3.5" />
-                <span>عناوين الأبواب</span>
+                <ListTree className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">عناوين الأبواب</span>
               </button>
               <button
                 onClick={() => setSearchModeTab('verify')}
-                className={`py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition ${
+                className={`py-2 px-1 rounded-xl text-[11px] sm:text-xs font-bold flex items-center justify-center gap-1 transition ${
                   searchModeTab === 'verify' ? 'bg-[#d4af37] text-black' : 'opacity-75'
                 }`}
               >
-                <FileCheck2 className="w-3.5 h-3.5" />
-                <span>تحقيق النصوص</span>
+                <FileCheck2 className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">تحقيق النصوص</span>
               </button>
             </div>
 
@@ -946,10 +919,9 @@ export default function App() {
 
                   {/* Advanced Options for Pages Search */}
                   {searchModeTab === 'pages' && (
-                    <div className="space-y-2.5 pt-1 border-t border-white/10">
-                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                        <div className="flex flex-wrap items-center gap-1">
-                          <SlidersHorizontal className="w-3.5 h-3.5 text-[#d4af37] ml-1" />
+                    <div className="space-y-2.5 pt-2 border-t border-white/10">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs">
+                        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-1.5">
                           {[
                             { id: 'all', label: 'الأقرب فالأقرب (ذكي)' },
                             { id: 'phrase', label: 'عبارة متتالية' },
@@ -959,10 +931,10 @@ export default function App() {
                               key={m.id}
                               type="button"
                               onClick={() => setMatchType(m.id as any)}
-                              className={`px-2.5 py-1 rounded-lg border transition ${
+                              className={`px-2.5 py-1.5 rounded-xl border text-center transition ${
                                 matchType === m.id
                                   ? 'bg-[#d4af37]/20 border-[#d4af37] text-[#d4af37] font-bold'
-                                  : 'border-transparent opacity-70'
+                                  : 'border-white/10 opacity-75'
                               }`}
                             >
                               {m.label}
@@ -971,7 +943,7 @@ export default function App() {
                           <button
                             type="button"
                             onClick={() => setUseMorphology((p) => !p)}
-                            className={`px-2.5 py-1 rounded-lg border transition ${
+                            className={`px-2.5 py-1.5 rounded-xl border text-center transition ${
                               useMorphology
                                 ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300 font-bold'
                                 : 'border-white/10 opacity-75'
@@ -982,7 +954,7 @@ export default function App() {
                           </button>
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-1">
+                        <div className="grid grid-cols-3 sm:flex items-center gap-1.5">
                           {[
                             { id: 'both', label: 'المتن والحاشية' },
                             { id: 'body', label: 'المتن فقط' },
@@ -992,10 +964,10 @@ export default function App() {
                               key={f.id}
                               type="button"
                               onClick={() => setSearchInField(f.id as any)}
-                              className={`px-2 py-1 rounded-lg border transition ${
+                              className={`px-2 py-1.5 rounded-xl border text-center transition ${
                                 searchInField === f.id
                                   ? 'bg-[#d4af37]/20 border-[#d4af37] text-[#d4af37] font-bold'
-                                  : 'border-transparent opacity-70'
+                                  : 'border-white/10 opacity-75'
                               }`}
                             >
                               {f.label}
@@ -1007,8 +979,8 @@ export default function App() {
                       {/* Filter by Specific Book Dropdown */}
                       <div className="relative">
                         {searchFilterBook ? (
-                          <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-[#d4af37]/15 border border-[#d4af37]/40 text-xs">
-                            <span className="font-bold text-[#d4af37] truncate">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-3 py-2.5 rounded-xl bg-[#d4af37]/15 border border-[#d4af37]/40 text-xs">
+                            <span className="font-bold text-[#d4af37] break-words leading-relaxed">
                               البحث محصور في كتاب: «{searchFilterBook.title}»
                               {searchFilterBook.pagesCount
                                 ? ` (${searchFilterBook.pagesCount.toLocaleString('ar-EG')} صفحة)`
@@ -1017,7 +989,7 @@ export default function App() {
                             <button
                               type="button"
                               onClick={() => setSearchFilterBook(null)}
-                              className="text-white bg-black/30 px-2 py-0.5 rounded-lg text-[11px] shrink-0"
+                              className="text-white bg-black/30 px-2.5 py-1 rounded-lg text-[11px] font-bold self-end sm:self-auto shrink-0"
                             >
                               إلغاء التخصيص
                             </button>
@@ -1027,10 +999,10 @@ export default function App() {
                             <button
                               type="button"
                               onClick={() => setShowBookFilterDropdown((p) => !p)}
-                              className="w-full px-3 py-2 rounded-xl bg-black/15 border border-white/10 text-xs flex items-center justify-between opacity-85 hover:opacity-100"
+                              className="w-full px-3 py-2.5 rounded-xl bg-black/15 border border-white/10 text-xs flex items-center justify-between gap-2 text-right opacity-85 hover:opacity-100"
                             >
-                              <span>تخصيص البحث في كتاب معين (اختياري — الافتراضي كل الكتب)</span>
-                              <ChevronLeft className="w-4 h-4 text-[#d4af37] -rotate-90" />
+                              <span className="break-words">تخصيص البحث في كتاب معين (اختياري)</span>
+                              <ChevronLeft className="w-4 h-4 text-[#d4af37] -rotate-90 shrink-0" />
                             </button>
 
                             {showBookFilterDropdown && (
@@ -1127,9 +1099,9 @@ export default function App() {
                         }}
                         className={`p-3.5 rounded-2xl border cursor-pointer flex items-center justify-between gap-2 ${themeClasses.cardBg}`}
                       >
-                        <div className="min-w-0">
-                          <h4 className="font-bold text-sm text-[#d4af37]">{t.title}</h4>
-                          <p className={`text-xs truncate ${themeClasses.mutedText}`}>
+                        <div className="min-w-0 flex-1">
+                          <h4 className="font-bold text-sm text-[#d4af37] break-words leading-snug">{t.title}</h4>
+                          <p className={`text-xs break-words mt-0.5 ${themeClasses.mutedText}`}>
                             {t.book_name} — {t.author_name}
                           </p>
                         </div>
@@ -1162,12 +1134,12 @@ export default function App() {
                             setReaderPageId(hit.page_id);
                             setReaderHighlight(pageQuery);
                           }}
-                          className={`p-4 rounded-2xl border cursor-pointer transition space-y-2 ${themeClasses.cardBg}`}
+                          className={`p-3.5 sm:p-4 rounded-2xl border cursor-pointer transition space-y-2 ${themeClasses.cardBg}`}
                         >
-                          <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
                             <div className="min-w-0 flex-1">
-                              <h4 className="font-bold text-sm text-[#d4af37]">{hit.book_name}</h4>
-                              <p className={`text-xs ${themeClasses.mutedText}`}>
+                              <h4 className="font-bold text-sm text-[#d4af37] break-words leading-snug">{hit.book_name}</h4>
+                              <p className={`text-xs break-words mt-0.5 ${themeClasses.mutedText}`}>
                                 {hit.author_name} {hit.author_death ? `(${hit.author_death})` : ''} • {hit.category}
                               </p>
                             </div>
@@ -1187,7 +1159,7 @@ export default function App() {
                           </div>
 
                           <div
-                            className="font-naskh text-base leading-[2.05] text-justify pt-1.5 border-t border-white/5"
+                            className="font-naskh text-base leading-[2.0] text-right sm:text-justify break-words pt-1.5 border-t border-white/5"
                             dangerouslySetInnerHTML={{
                               __html: proofreadSnippet.replace(
                                 /<mark>/g,
@@ -1315,76 +1287,57 @@ export default function App() {
 
         {/* TAB 3: ADVANCED AI SCHOLARLY CHAT & CONTENT STUDIO (المحادثة العلمية الشاملة وصناعة المحتوى من الموسوعة) */}
         {activeTab === 'ai' && (
-          <main className="p-3.5 space-y-4 flex-1">
-            {/* Top Banner: Gemini & Claude Connection + Strict Grounding Info */}
+          <main className="p-3 sm:p-4 space-y-3.5 flex-1">
+            {/* Top Banner: Mobile-Fitted Studio Introduction */}
             <div
-              className={`p-3.5 rounded-2xl border flex flex-wrap items-center justify-between gap-2.5 ${themeClasses.cardBg}`}
+              className={`p-3.5 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${themeClasses.cardBg}`}
             >
               <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                <div className="w-9 h-9 rounded-xl bg-[#d4af37]/15 border border-[#d4af37]/40 flex items-center justify-center text-[#d4af37] shrink-0 mt-0.5">
-                  <Sparkles className="w-5 h-5" />
-                </div>
-                <div className="min-w-0 flex-1">
+                <AppLogo size="sm" />
+                <div className="min-w-0 flex-1 space-y-1">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <h2 className="font-extrabold text-xs sm:text-sm">
-                      الدردشة العلمية الشاملة وصناعة المحتوى من الموسوعة
+                    <h2 className="font-extrabold text-sm sm:text-base leading-snug break-words">
+                      المساعد العلمي الشامل واستوديو الملفات
                     </h2>
                     <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 text-[10px] font-bold">
-                      موثق ١٠٠٪ من الكتب
+                      إنفوجرافيك • باوربوينت • وورد • PDF
                     </span>
                   </div>
-                  <p className={`text-[11px] leading-relaxed mt-0.5 ${themeClasses.mutedText}`}>
-                    تلخيص كتب • مقالات علمية • تفسير آيات وشرح أحاديث • خطب جمعة منبرية • دروس شاملة (لا يخرج عن كتب الموسوعة إطلاقاً)
+                  <p className={`text-xs leading-relaxed break-words ${themeClasses.mutedText}`}>
+                    حاور في أي موضوع بالموسوعة • لخص الكتب • صمم إنفوجرافيك (PNG) • عروض باوربوينت (.pptx) • ملفات Word و PDF • خطب ودروس
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-1.5 shrink-0">
-                {aiMessages.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAiMessages([]);
-                      setAiResult(null);
-                      setAiError(null);
-                    }}
-                    className="px-2.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold flex items-center gap-1 transition"
-                    title="بدء محادثة جديدة"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    <span>محادثة جديدة</span>
-                  </button>
-                )}
-
+              {aiMessages.length > 0 && (
                 <button
                   type="button"
-                  onClick={() => setIsApiModalOpen(true)}
-                  className="px-3 py-2 rounded-xl bg-[#d4af37] text-black font-bold text-xs flex items-center gap-1.5 shrink-0 shadow-sm hover:brightness-110 transition"
+                  onClick={() => {
+                    setAiMessages([]);
+                    setAiResult(null);
+                    setAiError(null);
+                  }}
+                  className="w-full sm:w-auto px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/15 text-xs font-bold flex items-center justify-center gap-1.5 shrink-0 transition"
+                  title="بدء محادثة جديدة"
                 >
-                  <Bot className="w-3.5 h-3.5" />
-                  <span>
-                    {claudeApiKey && (preferredProvider === 'claude' || !userApiKey)
-                      ? 'متصل بـ Claude'
-                      : userApiKey
-                      ? 'متصل بـ Gemini'
-                      : 'ربط Gemini / Claude'}
-                  </span>
+                  <RotateCcw className="w-3.5 h-3.5 text-[#d4af37]" />
+                  <span>محادثة جديدة</span>
                 </button>
-              </div>
+              )}
             </div>
 
             {/* Book-Only Restriction Selector & Active Scoped Book Banner */}
             <div className={`p-3.5 rounded-2xl border space-y-2.5 ${themeClasses.cardBg}`}>
               {aiScopedBook ? (
                 <div className="space-y-2.5">
-                  <div className="p-3 rounded-xl bg-[#d4af37]/15 border border-[#d4af37]/40 flex flex-wrap items-center justify-between gap-2">
+                  <div className="p-3 rounded-xl bg-[#d4af37]/15 border border-[#d4af37]/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                     <div className="flex items-start gap-2 min-w-0 flex-1">
                       <BookOpen className="w-4 h-4 text-[#d4af37] shrink-0 mt-0.5" />
                       <div className="min-w-0 flex-1">
-                        <span className="text-[11px] opacity-80 block">
-                          الدردشة والتلخيص محصورة حالياً في هذا الكتاب فقط (لا تخرج عنه):
+                        <span className="text-[11px] opacity-85 block">
+                          الدردشة والتلخيص محصورة حالياً في هذا الكتاب فقط:
                         </span>
-                        <strong className="text-xs sm:text-sm text-[#d4af37] font-extrabold break-words block">
+                        <strong className="text-xs sm:text-sm text-[#d4af37] font-extrabold break-words leading-snug block mt-0.5">
                           «{aiScopedBook.name}»
                         </strong>
                       </div>
@@ -1392,104 +1345,123 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => setAiScopedBook(null)}
-                      className="px-3 py-1.5 rounded-xl bg-black/20 hover:bg-black/35 text-xs font-bold flex items-center gap-1 shrink-0"
+                      className="w-full sm:w-auto px-3 py-2 rounded-xl bg-black/20 hover:bg-black/35 text-xs font-bold flex items-center justify-center gap-1 shrink-0"
                     >
                       <X className="w-3.5 h-3.5" />
                       <span>إلغاء الحصر (كل الموسوعة)</span>
                     </button>
                   </div>
 
-                  {/* Quick One-Tap Actions for the Selected Book */}
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-[11px] font-bold opacity-80 ml-1">أوامر سريعة للكتاب:</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAiMode('book_summary');
-                        handleAskAI(
-                          `لخص لي كتاب ${aiScopedBook.name} ومنهجه وأبرز أبوابه وفصوله`,
-                          'book_summary',
-                          aiScopedBook
-                        );
-                      }}
-                      className="px-2.5 py-1.5 rounded-xl bg-[#d4af37] text-black text-xs font-bold flex items-center gap-1"
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      <span>لخص لي هذا الكتاب</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAiMode('lesson');
-                        handleAskAI(
-                          `اكتب لي درساً علمياً شاملاً مستخلصاً من كتاب ${aiScopedBook.name}`,
-                          'lesson',
-                          aiScopedBook
-                        );
-                      }}
-                      className="px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-[#d4af37]/15 border border-white/10 text-xs font-bold"
-                    >
-                      درس علمي من الكتاب
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAiMode('article');
-                        handleAskAI(
-                          `اكتب لي مقالاً علمياً يبرز أهم موضوعات وفوائد كتاب ${aiScopedBook.name}`,
-                          'article',
-                          aiScopedBook
-                        );
-                      }}
-                      className="px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-[#d4af37]/15 border border-white/10 text-xs font-bold"
-                    >
-                      مقال عن الكتاب
-                    </button>
+                  {/* Quick One-Tap Actions for the Selected Book (2x2 Grid on Mobile) */}
+                  <div className="space-y-1.5">
+                    <span className="text-[11px] font-bold opacity-85 block">أوامر سريعة للكتاب المحدد:</span>
+                    <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAiMode('book_summary');
+                          handleAskAI(
+                            `لخص لي كتاب ${aiScopedBook.name} ومنهجه وأبرز أبوابه وفصوله`,
+                            'book_summary',
+                            aiScopedBook
+                          );
+                        }}
+                        className="px-2.5 py-2 rounded-xl bg-[#d4af37] text-black text-xs font-bold flex items-center justify-center gap-1"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                        <span>لخص الكتاب</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAiMode('infographic');
+                          handleAskAI(
+                            `صمم لي صورة إنفوجرافيك تلخص كتاب ${aiScopedBook.name} وأبرز محاوره`,
+                            'infographic',
+                            aiScopedBook
+                          );
+                        }}
+                        className="px-2.5 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-xs font-bold flex items-center justify-center gap-1"
+                      >
+                        <ImageIcon className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <span>إنفوجرافيك للكتاب</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAiMode('presentation');
+                          handleAskAI(
+                            `اعمل عرض باوربوينت شامل لكتاب ${aiScopedBook.name}`,
+                            'presentation',
+                            aiScopedBook
+                          );
+                        }}
+                        className="px-2.5 py-2 rounded-xl bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/40 text-xs font-bold flex items-center justify-center gap-1"
+                      >
+                        <Presentation className="w-3.5 h-3.5 text-orange-400 shrink-0" />
+                        <span>عرض باوربوينت</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAiMode('lesson');
+                          handleAskAI(
+                            `اكتب لي درساً علمياً شاملاً مستخلصاً من كتاب ${aiScopedBook.name}`,
+                            'lesson',
+                            aiScopedBook
+                          );
+                        }}
+                        className="px-2.5 py-2 rounded-xl bg-white/5 hover:bg-[#d4af37]/15 border border-white/10 text-xs font-bold flex items-center justify-center gap-1"
+                      >
+                        <GraduationCap className="w-3.5 h-3.5 text-[#d4af37] shrink-0" />
+                        <span>درس من الكتاب</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               ) : (
                 <div className="relative">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 text-xs">
-                      <BookOpen className="w-4 h-4 text-[#d4af37] shrink-0" />
-                      <span className="font-bold">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div className="flex items-start sm:items-center gap-2 text-xs">
+                      <BookOpen className="w-4 h-4 text-[#d4af37] shrink-0 mt-0.5 sm:mt-0" />
+                      <span className="font-bold leading-relaxed break-words">
                         نطاق المحادثة: جميع كتب الموسوعة (أو اختر كتاباً محدداً لتلخيصه ومناقشته وحده)
                       </span>
                     </div>
                     <button
                       type="button"
                       onClick={() => setShowAiBookPicker((p) => !p)}
-                      className="px-3 py-1.5 rounded-xl bg-[#d4af37]/15 hover:bg-[#d4af37]/25 border border-[#d4af37]/40 text-[#d4af37] text-xs font-bold flex items-center gap-1.5 transition"
+                      className="w-full sm:w-auto px-3 py-2 rounded-xl bg-[#d4af37]/15 hover:bg-[#d4af37]/25 border border-[#d4af37]/40 text-[#d4af37] text-xs font-bold flex items-center justify-center gap-1.5 shrink-0 transition"
                     >
-                      <BookOpen className="w-3.5 h-3.5" />
+                      <BookOpen className="w-3.5 h-3.5 shrink-0" />
                       <span>{showAiBookPicker ? 'إغلاق قائمة الكتب' : 'تحديد كتاب معين للنقاش أو التلخيص'}</span>
                     </button>
                   </div>
 
                   {showAiBookPicker && (
                     <div
-                      className={`mt-2.5 p-3 rounded-2xl border shadow-xl space-y-2 ${themeClasses.cardBg}`}
+                      className={`mt-2.5 p-3 rounded-2xl border shadow-xl space-y-2.5 ${themeClasses.cardBg}`}
                     >
                       <input
                         type="search"
                         value={aiBookPickerQuery}
                         onChange={(e) => setAiBookPickerQuery(e.target.value)}
                         placeholder="ابحث عن اسم الكتاب أو المؤلف لحصر الدردشة فيه أو تلخيصه..."
-                        className={`w-full px-3 py-2 rounded-xl border text-xs focus:border-[#d4af37] focus:outline-none ${themeClasses.inputBg}`}
+                        className={`w-full px-3 py-2.5 rounded-xl border text-xs focus:border-[#d4af37] focus:outline-none ${themeClasses.inputBg}`}
                       />
-                      <div className="max-h-52 overflow-y-auto space-y-1">
+                      <div className="max-h-60 overflow-y-auto space-y-1.5">
                         {aiBookPickerOptions.map((b) => (
                           <div
                             key={b.id}
-                            className="w-full p-2 rounded-xl hover:bg-[#d4af37]/15 flex flex-wrap items-center justify-between gap-2 text-xs transition"
+                            className="w-full p-2.5 rounded-xl bg-black/10 hover:bg-[#d4af37]/10 border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs transition"
                           >
                             <div className="min-w-0 flex-1">
-                              <div className="font-bold break-words">{b.title}</div>
-                              <div className="text-[11px] opacity-75">
+                              <div className="font-bold break-words leading-snug">{b.title}</div>
+                              <div className="text-[11px] opacity-75 break-words mt-0.5">
                                 {b.author} • {b.category}
                               </div>
                             </div>
-                            <div className="flex items-center gap-1 shrink-0">
+                            <div className="grid grid-cols-2 sm:flex items-center gap-1.5 w-full sm:w-auto shrink-0">
                               <button
                                 type="button"
                                 onClick={() => {
@@ -1503,7 +1475,7 @@ export default function App() {
                                     scoped
                                   );
                                 }}
-                                className="px-2.5 py-1 rounded-lg bg-[#d4af37] text-black font-bold text-[11px]"
+                                className="px-2.5 py-1.5 rounded-lg bg-[#d4af37] text-black font-bold text-[11px] text-center"
                               >
                                 لخص الكتاب
                               </button>
@@ -1513,7 +1485,7 @@ export default function App() {
                                   setAiScopedBook({ id: b.id, name: b.title });
                                   setShowAiBookPicker(false);
                                 }}
-                                className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 font-bold text-[11px]"
+                                className="px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 font-bold text-[11px] text-center"
                               >
                                 حصر النقاش فيه
                               </button>
@@ -1527,28 +1499,31 @@ export default function App() {
               )}
             </div>
 
-            {/* 6 Specialized Scholarly Modes Selector + Question Input Box */}
+            {/* Specialized Scholarly Modes Selector + Question Input Box */}
             <form
               onSubmit={(e) => {
                 e.preventDefault();
                 handleAskAI();
               }}
-              className={`p-3.5 rounded-2xl border space-y-3 ${themeClasses.cardBg}`}
+              className={`p-3.5 rounded-2xl border space-y-3.5 ${themeClasses.cardBg}`}
             >
-              {/* Mode Selector Pills */}
-              <div className="space-y-1.5">
+              {/* Symmetrical 2-Column Mobile Grid for Mode Selector Buttons */}
+              <div className="space-y-2">
                 <span className="text-xs font-bold text-[#d4af37] block">
-                  اختر نوع المهمة أو الحوار العلمي المطلوب:
+                  اختر نوع المهمة أو الملف المطلوب (أو اكتب طلبك مباشرة):
                 </span>
-                <div className="flex flex-wrap items-center gap-1.5">
+                <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-1.5">
                   {[
-                    { id: 'auto', label: 'تلقائي ذكي', icon: Sparkles },
-                    { id: 'chat', label: 'سؤال وحوار دقيق', icon: MessageSquareQuote },
+                    { id: 'auto', label: 'تلقائي شامل', icon: Sparkles },
+                    { id: 'chat', label: 'نقاش وحوار عام', icon: MessageSquareQuote },
+                    { id: 'infographic', label: 'صورة إنفوجرافيك', icon: ImageIcon },
+                    { id: 'presentation', label: 'عرض باوربوينت', icon: Presentation },
+                    { id: 'document', label: 'ملف وورد / PDF', icon: FileText },
                     { id: 'book_summary', label: 'ملخص كتاب', icon: BookOpen },
+                    { id: 'khutbah', label: 'خطبة جمعة', icon: Mic },
+                    { id: 'lesson', label: 'درس علمي', icon: GraduationCap },
+                    { id: 'tafsir_hadith', label: 'تفسير وحديث', icon: ShieldCheck },
                     { id: 'article', label: 'مقال علمي', icon: FileText },
-                    { id: 'tafsir_hadith', label: 'تفسير آية أو حديث', icon: ShieldCheck },
-                    { id: 'khutbah', label: 'خطبة جمعة منبرية', icon: Mic },
-                    { id: 'lesson', label: 'درس علمي شامل', icon: GraduationCap },
                   ].map((m) => {
                     const MIcon = m.icon;
                     const active = aiMode === m.id;
@@ -1557,14 +1532,14 @@ export default function App() {
                         key={m.id}
                         type="button"
                         onClick={() => setAiMode(m.id as AIChatMode)}
-                        className={`px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition ${
+                        className={`px-2.5 py-2 min-h-[38px] rounded-xl text-xs font-bold flex items-center justify-center sm:justify-start gap-1.5 border transition ${
                           active
                             ? 'bg-[#d4af37] text-black border-[#d4af37] shadow-xs'
                             : 'bg-white/5 border-white/10 hover:border-[#d4af37]/40'
                         }`}
                       >
                         <MIcon className="w-3.5 h-3.5 shrink-0" />
-                        <span>{m.label}</span>
+                        <span className="truncate">{m.label}</span>
                       </button>
                     );
                   })}
@@ -1585,64 +1560,68 @@ export default function App() {
                 }}
                 placeholder={
                   aiScopedBook
-                    ? `اسأل أي سؤال أو اطلب تلخيصاً أو درساً أو مقالاً من كتاب «${aiScopedBook.name}» فقط...`
+                    ? `اطلب أي شيء من كتاب «${aiScopedBook.name}»: ملخص، صورة إنفوجرافيك، عرض باوربوينت، ملف وورد/PDF، أو سؤال مباشر...`
+                    : aiMode === 'infographic'
+                    ? 'اكتب الموضوع لتصميم صورة إنفوجرافيك عالية الدقة له (مثال: صمم لي صورة إنفوجرافيك عن أركان التوبة)...'
+                    : aiMode === 'presentation'
+                    ? 'اكتب الموضوع لإعداد شرائح عرض باوربوينت .pptx له (مثال: اعمل عرض باوربوينت عن زكاة الذهب)...'
+                    : aiMode === 'document'
+                    ? 'اكتب الموضوع لتجهيز ملف وورد Word وملف PDF متكامل له...'
                     : aiMode === 'book_summary'
                     ? 'اكتب اسم الكتاب لتلخيصه (مثال: لخص لي كتاب قواعد الإسلام للإمام الجيطالي)...'
                     : aiMode === 'khutbah'
                     ? 'اكتب موضوع الخطبة (مثال: اكتب لي خطبة جمعة عن بر الوالدين وصلة الأرحام)...'
                     : aiMode === 'lesson'
                     ? 'اكتب موضوع الدرس (مثال: اكتب لي درساً شاملاً في أحكام التوبة وشروطها)...'
-                    : aiMode === 'article'
-                    ? 'اكتب موضوع المقال (مثال: اكتب لي مقالاً علمياً عن نظام العزابة ودوره التعليمي)...'
-                    : aiMode === 'tafsir_hadith'
-                    ? 'اكتب الآية القرآنية أو الحديث الشريف لتفسيره وشرحه من كتب الموسوعة...'
-                    : 'حاور المساعد في أي موضوع علمي، أو اطلب ملخص كتاب، أو خطبة جمعة، أو درساً شاملاً، أو تفسيراً لآية...'
+                    : 'تحدث مع المساعد في كل شيء داخل الموسوعة: اطلب صورة إنفوجرافيك، عرض باوربوينت، ملف وورد أو PDF، ملخص كتاب، خطبة جمعة، أو درساً شاملاً...'
                 }
-                className={`w-full p-3 rounded-xl border text-sm focus:border-[#d4af37] focus:outline-none resize-none ${themeClasses.inputBg}`}
+                className={`w-full p-3 rounded-xl border text-sm leading-relaxed focus:border-[#d4af37] focus:outline-none resize-none ${themeClasses.inputBg}`}
               />
 
-              <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                 {!aiScopedBook ? (
-                  <div className="flex flex-wrap items-center gap-1 text-xs">
-                    <span className="opacity-80 ml-1">المصادر:</span>
-                    {[
-                      { id: 'all', label: 'الكتب والفتاوى' },
-                      { id: 'books', label: 'المتون فقط' },
-                      { id: 'fatawa', label: 'الفتاوى فقط' },
-                    ].map((s) => (
-                      <button
-                        key={s.id}
-                        type="button"
-                        onClick={() => setAiScope(s.id as any)}
-                        className={`px-2.5 py-1 rounded-lg border transition ${
-                          aiScope === s.id
-                            ? 'bg-[#d4af37]/20 border-[#d4af37] text-[#d4af37] font-bold'
-                            : 'border-transparent opacity-80'
-                        }`}
-                      >
-                        {s.label}
-                      </button>
-                    ))}
+                  <div className="space-y-1.5 sm:space-y-0 sm:flex sm:items-center sm:gap-1.5 text-xs w-full sm:w-auto">
+                    <span className="opacity-85 font-bold block sm:inline sm:ml-1">نطاق البحث:</span>
+                    <div className="grid grid-cols-3 sm:flex gap-1.5">
+                      {[
+                        { id: 'all', label: 'الكتب والفتاوى' },
+                        { id: 'books', label: 'المتون فقط' },
+                        { id: 'fatawa', label: 'الفتاوى فقط' },
+                      ].map((s) => (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => setAiScope(s.id as any)}
+                          className={`px-2 py-1.5 rounded-xl border text-center transition ${
+                            aiScope === s.id
+                              ? 'bg-[#d4af37]/20 border-[#d4af37] text-[#d4af37] font-bold'
+                              : 'border-white/10 opacity-80'
+                          }`}
+                        >
+                          {s.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 ) : (
-                  <span className="text-xs font-bold text-[#d4af37]">
-                    ✓ الإجابة تعتمد ١٠٠٪ على كتاب «{aiScopedBook.name}» وحده
+                  <span className="text-xs font-bold text-[#d4af37] break-words">
+                    ✓ الإجابة والملفات تعتمد ١٠٠٪ على كتاب «{aiScopedBook.name}» وحده
                   </span>
                 )}
 
                 <button
                   type="submit"
                   disabled={aiLoading || !aiQuestion.trim()}
-                  className="px-5 py-2.5 rounded-xl bg-gradient-to-l from-[#d4af37] to-[#b89225] text-black font-bold text-xs flex items-center gap-2 disabled:opacity-40 shadow-md"
+                  className="w-full sm:w-auto px-5 py-3 rounded-xl bg-gradient-to-l from-[#d4af37] to-[#b89225] text-black font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 disabled:opacity-40 shadow-md active:scale-98 transition"
                 >
                   {aiLoading ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>جاري استقراء الموسوعة والصياغة...</span>
+                      <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                      <span>جاري استقراء الموسوعة وتوليد المخرجات...</span>
                     </>
                   ) : (
                     <>
-                      <Send className="w-4 h-4" />
+                      <Send className="w-4 h-4 shrink-0" />
                       <span>إرسال وتوليد من الموسوعة</span>
                     </>
                   )}
@@ -1650,43 +1629,43 @@ export default function App() {
               </div>
             </form>
 
-            {/* Starter Prompts Grid across all 6 Capabilities if conversation is empty */}
+            {/* Starter Prompts Grid across all Capabilities if conversation is empty */}
             {aiMessages.length === 0 && !aiLoading && (
-              <div className={`p-4 rounded-2xl border space-y-3 ${themeClasses.cardBg}`}>
+              <div className={`p-3.5 sm:p-4 rounded-2xl border space-y-3 ${themeClasses.cardBg}`}>
                 <h3 className="text-xs font-bold text-[#d4af37]">
                   نماذج جاهزة للتجربة الفورية (اضغط على أي نموذج لتشغيله):
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                   {[
                     {
-                      tag: '📘 ملخص كتاب',
+                      tag: '🎨 صورة إنفوجرافيك (PNG)',
+                      mode: 'infographic' as AIChatMode,
+                      prompt: 'صمم لي صورة إنفوجرافيك عن بر الوالدين وصلة الأرحام من كتب الموسوعة',
+                    },
+                    {
+                      tag: '📊 عرض باوربوينت (.pptx)',
+                      mode: 'presentation' as AIChatMode,
+                      prompt: 'اعمل عرض باوربوينت عن أحكام الزكاة وشروطها من الموسوعة',
+                    },
+                    {
+                      tag: '📝 ملف وورد و PDF',
+                      mode: 'document' as AIChatMode,
+                      prompt: 'أعطني ملف وورد و PDF عن التوبة النصوح وشروطها من كتب الموسوعة',
+                    },
+                    {
+                      tag: '📘 ملخص كتاب شامل',
                       mode: 'book_summary' as AIChatMode,
                       prompt: 'لخص لي كتاب قواعد الإسلام للإمام الجيطالي ومنهجه وأبرز أبوابه',
                     },
                     {
                       tag: '🕌 خطبة جمعة منبرية',
                       mode: 'khutbah' as AIChatMode,
-                      prompt: 'اكتب لي خطبة جمعة بأسلوب الخطبة عن بر الوالدين وصلة الأرحام',
+                      prompt: 'اكتب لي خطبة جمعة بأسلوب الخطبة عن الأمانة والصدق في المعاملات',
                     },
                     {
                       tag: '🎓 درس علمي شامل',
                       mode: 'lesson' as AIChatMode,
-                      prompt: 'اكتب لي درساً شاملاً في موضوع التوبة النصوح وشروطها من كتب الموسوعة',
-                    },
-                    {
-                      tag: '📖 تفسير آية أو حديث',
-                      mode: 'tafsir_hadith' as AIChatMode,
-                      prompt: 'ما تفسير قوله تعالى ﴿إِنَّ اللَّهَ يَأْمُرُ بِالْعَدْلِ وَالْإِحْسَانِ﴾ في كتب التفسير بالموسوعة؟',
-                    },
-                    {
-                      tag: '✒️ مقال علمي مؤصل',
-                      mode: 'article' as AIChatMode,
-                      prompt: 'اكتب لي مقالاً علمياً عن نظام العزابة ودوره التعليمي والاجتماعي',
-                    },
-                    {
-                      tag: '⚖️ مسألة فقهية دقيقة',
-                      mode: 'chat' as AIChatMode,
-                      prompt: 'ما حكم زكاة الذهب الملبوس للزينة وأدلة العلماء فيها من الموسوعة؟',
+                      prompt: 'اكتب لي درساً شاملاً في موضوع نظام العزابة ودوره التعليمي',
                     },
                   ].map((item) => (
                     <button
@@ -1698,13 +1677,13 @@ export default function App() {
                       }}
                       className="text-right p-3 rounded-xl bg-white/5 hover:bg-[#d4af37]/15 border border-white/10 hover:border-[#d4af37]/40 text-xs flex flex-col gap-1.5 transition"
                     >
-                      <div className="flex items-center justify-between w-full">
+                      <div className="flex items-center justify-between w-full gap-2">
                         <span className="px-2 py-0.5 rounded-md bg-[#d4af37]/20 text-[#d4af37] font-bold text-[10px]">
                           {item.tag}
                         </span>
                         <ChevronLeft className="w-4 h-4 text-[#d4af37] shrink-0" />
                       </div>
-                      <span className="font-bold leading-relaxed">{item.prompt}</span>
+                      <span className="font-bold leading-relaxed break-words">{item.prompt}</span>
                     </button>
                   ))}
                 </div>
@@ -1714,10 +1693,10 @@ export default function App() {
             {/* Error Alert */}
             {aiError && (
               <div className="p-4 rounded-2xl bg-red-500/15 border border-red-500/30 text-red-400 text-xs space-y-2">
-                <p className="font-bold">{aiError}</p>
+                <p className="font-bold break-words">{aiError}</p>
                 <button
                   onClick={() => setIsApiModalOpen(true)}
-                  className="px-3 py-1.5 rounded-lg bg-[#d4af37] text-black font-bold text-xs inline-flex items-center gap-1.5"
+                  className="px-3 py-2 rounded-xl bg-[#d4af37] text-black font-bold text-xs inline-flex items-center gap-1.5"
                 >
                   <Key className="w-3.5 h-3.5" />
                   <span>فتح إعدادات ربط Gemini و Claude</span>
@@ -1737,13 +1716,11 @@ export default function App() {
                       >
                         <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
                           <span className="font-extrabold text-[#d4af37]">سؤالك / طلبك العلمي:</span>
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            {msg.scopedBookName && (
-                              <span className="px-2 py-0.5 rounded-md bg-black/20 text-[#d4af37] font-bold">
-                                كتاب: {msg.scopedBookName}
-                              </span>
-                            )}
-                          </div>
+                          {msg.scopedBookName && (
+                            <span className="px-2 py-0.5 rounded-md bg-black/20 text-[#d4af37] font-bold break-words">
+                              كتاب: {msg.scopedBookName}
+                            </span>
+                          )}
                         </div>
                         <p className="font-bold text-sm leading-relaxed break-words">{msg.content}</p>
                       </div>
@@ -1758,16 +1735,16 @@ export default function App() {
 
                   return (
                     <div key={msg.id} className="space-y-3">
-                      <div className={`p-4 sm:p-5 rounded-2xl border space-y-4 ${themeClasses.cardBg}`}>
+                      <div className={`p-3.5 sm:p-5 rounded-2xl border space-y-4 overflow-hidden ${themeClasses.cardBg}`}>
                         {/* Top Action Bar for Copying & Bookmarking AI Answer */}
-                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-3">
-                          <div className="flex flex-wrap items-center gap-1.5">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-white/10 pb-3">
+                          <div className="flex flex-wrap items-center gap-1.5 min-w-0">
                             <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                             <span className="text-xs font-extrabold text-[#d4af37]">
                               {resp.modeLabel || 'إجابة علمية موثقة'}
                             </span>
                             {resp.matchedBook ? (
-                              <span className="px-2 py-0.5 rounded-md bg-[#d4af37]/20 text-[#d4af37] text-[10px] font-bold">
+                              <span className="px-2 py-0.5 rounded-md bg-[#d4af37]/20 text-[#d4af37] text-[10px] font-bold break-words">
                                 حصرياً من كتاب: {resp.matchedBook.title}
                               </span>
                             ) : (
@@ -1777,20 +1754,20 @@ export default function App() {
                             )}
                           </div>
 
-                          <div className="flex flex-wrap items-center gap-1.5">
+                          <div className="flex items-center gap-1.5 w-full sm:w-auto">
                             <button
                               type="button"
                               onClick={() => handleCopyAiResult(resp, 'answer', msg.id)}
-                              className="px-3 py-1.5 rounded-xl bg-[#d4af37] text-black font-bold text-xs flex items-center gap-1.5 shadow-sm active:scale-95 transition"
+                              className="flex-1 sm:flex-initial px-3 py-2 rounded-xl bg-[#d4af37] text-black font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition"
                             >
                               {copiedAiMode === ansCopyKey ? (
                                 <>
-                                  <Check className="w-3.5 h-3.5" />
+                                  <Check className="w-3.5 h-3.5 shrink-0" />
                                   <span>تم النسخ!</span>
                                 </>
                               ) : (
                                 <>
-                                  <Copy className="w-3.5 h-3.5" />
+                                  <Copy className="w-3.5 h-3.5 shrink-0" />
                                   <span>نسخ النص</span>
                                 </>
                               )}
@@ -1799,16 +1776,16 @@ export default function App() {
                             <button
                               type="button"
                               onClick={() => handleCopyAiResult(resp, 'full', msg.id)}
-                              className="px-3 py-1.5 rounded-xl bg-[#d4af37]/15 border border-[#d4af37]/40 text-[#d4af37] font-bold text-xs flex items-center gap-1.5 active:scale-95 transition"
+                              className="flex-1 sm:flex-initial px-3 py-2 rounded-xl bg-[#d4af37]/15 border border-[#d4af37]/40 text-[#d4af37] font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition"
                             >
                               {copiedAiMode === fullCopyKey ? (
                                 <>
-                                  <Check className="w-3.5 h-3.5 text-emerald-400" />
-                                  <span>تم النسخ بالتوثيق!</span>
+                                  <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                  <span>تم النسخ!</span>
                                 </>
                               ) : (
                                 <>
-                                  <Copy className="w-3.5 h-3.5" />
+                                  <Copy className="w-3.5 h-3.5 shrink-0" />
                                   <span>نسخ مع المصادر</span>
                                 </>
                               )}
@@ -1827,7 +1804,7 @@ export default function App() {
                                   fullText: resp.answer,
                                 })
                               }
-                              className={`p-1.5 rounded-xl border transition ${
+                              className={`p-2 rounded-xl border shrink-0 transition ${
                                 isBookmarked(`ai-${resp.question.slice(0, 40)}`)
                                   ? 'bg-[#d4af37]/20 border-[#d4af37] text-[#d4af37]'
                                   : 'border-white/15 opacity-80'
@@ -1839,10 +1816,13 @@ export default function App() {
                           </div>
                         </div>
 
-                        {/* Formatted Answer Text */}
-                        <div className="font-naskh text-lg leading-[2.1] whitespace-pre-line text-justify select-text">
+                        {/* Formatted Answer Text (Mobile-fitted right-aligned on narrow screens, no ugly spacing gaps) */}
+                        <div className="font-naskh text-base sm:text-lg leading-[2.0] sm:leading-[2.1] whitespace-pre-line text-right sm:text-justify break-words overflow-x-hidden select-text">
                           {resp.answer}
                         </div>
+
+                        {/* Interactive Artifact Studio: Infographic PNG, PowerPoint PPTX, Word DOC, and PDF */}
+                        <ChatArtifactStudio response={resp} themeMode={themeMode} />
 
                         {/* Contextual Follow-Up Suggestions */}
                         {resp.followUpSuggestions && resp.followUpSuggestions.length > 0 && (
@@ -1850,7 +1830,7 @@ export default function App() {
                             <span className="text-xs font-bold text-[#d4af37] block">
                               أسئلة وطلبات متابعة مقترحة في نفس الموضوع:
                             </span>
-                            <div className="flex flex-wrap gap-1.5">
+                            <div className="grid grid-cols-1 sm:flex sm:flex-wrap gap-1.5">
                               {resp.followUpSuggestions.map((sug) => (
                                 <button
                                   key={sug}
@@ -1864,7 +1844,7 @@ export default function App() {
                                         : aiScopedBook
                                     )
                                   }
-                                  className="text-right px-3 py-1.5 rounded-xl bg-white/5 hover:bg-[#d4af37]/15 border border-white/10 hover:border-[#d4af37]/40 text-xs font-medium transition"
+                                  className="w-full sm:w-auto text-right px-3 py-2 rounded-xl bg-white/5 hover:bg-[#d4af37]/15 border border-white/10 hover:border-[#d4af37]/40 text-xs font-medium leading-relaxed break-words transition"
                                 >
                                   {sug}
                                 </button>
@@ -1896,16 +1876,16 @@ export default function App() {
                                       setReaderPageId(src.page_id);
                                       setReaderHighlight(resp.searchQueryUsed);
                                     }}
-                                    className="p-3 rounded-xl bg-black/15 border border-white/10 hover:border-[#d4af37]/50 cursor-pointer flex items-start justify-between gap-3 transition"
+                                    className="p-3 rounded-xl bg-black/15 border border-white/10 hover:border-[#d4af37]/50 cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-2 transition"
                                   >
                                     <div className="min-w-0 flex-1 space-y-1">
                                       <h4 className="font-bold text-xs sm:text-sm text-[#d4af37] break-words leading-snug">
                                         [{i + 1}] {src.book_name}
                                       </h4>
                                       <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-                                        <span className={themeClasses.mutedText}>{src.author_name}</span>
+                                        <span className={`break-words ${themeClasses.mutedText}`}>{src.author_name}</span>
                                         <span
-                                          className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
+                                          className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
                                             isPrinted
                                               ? 'bg-emerald-500/15 text-emerald-400'
                                               : 'bg-amber-500/15 text-amber-300'
@@ -1915,7 +1895,7 @@ export default function App() {
                                         </span>
                                       </div>
                                     </div>
-                                    <span className="px-2.5 py-1 rounded-lg bg-[#d4af37]/15 text-[#d4af37] font-bold text-xs shrink-0 flex items-center gap-1">
+                                    <span className="self-end sm:self-auto px-2.5 py-1 rounded-lg bg-[#d4af37]/15 text-[#d4af37] font-bold text-xs shrink-0 flex items-center gap-1">
                                       <Eye className="w-3.5 h-3.5" />
                                       <span>
                                         ج{src.part || 1} / ص{src.page_number}
@@ -1940,17 +1920,17 @@ export default function App() {
                                 <div
                                   key={f.fatwa_id}
                                   onClick={() => setSelectedFatwaId(f.fatwa_id)}
-                                  className="p-3 rounded-xl bg-black/15 border border-white/10 hover:border-emerald-500/50 cursor-pointer flex items-start justify-between gap-3 transition"
+                                  className="p-3 rounded-xl bg-black/15 border border-white/10 hover:border-emerald-500/50 cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-2 transition"
                                 >
                                   <div className="min-w-0 flex-1">
                                     <h4 className="font-bold text-xs sm:text-sm text-emerald-400 break-words leading-snug">
                                       {f.title}
                                     </h4>
-                                    <p className={`text-[11px] mt-0.5 ${themeClasses.mutedText}`}>
+                                    <p className={`text-[11px] mt-0.5 break-words ${themeClasses.mutedText}`}>
                                       المفتي: {f.mufti}
                                     </p>
                                   </div>
-                                  <span className="px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-400 font-bold text-xs shrink-0">
+                                  <span className="self-end sm:self-auto px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-400 font-bold text-xs shrink-0">
                                     فتوى #{f.fatwa_id}
                                   </span>
                                 </div>
@@ -2112,20 +2092,30 @@ export default function App() {
             {/* 2. API Key Configuration Card (Gemini & Claude) */}
             <section className={`p-4 rounded-2xl border space-y-3 ${themeClasses.cardBg}`}>
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="space-y-0.5 min-w-0 flex-1">
-                  <h2 className="font-bold text-sm text-[#d4af37] flex items-center gap-2">
-                    <Bot className="w-4 h-4 shrink-0" />
-                    <span>إعدادات ربط الذكاء الاصطناعي (Google Gemini & Anthropic Claude)</span>
-                  </h2>
+                <div className="space-y-1 min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="font-bold text-sm text-[#d4af37] flex items-center gap-2">
+                      <Bot className="w-4 h-4 shrink-0" />
+                      <span>إعدادات ربط الذكاء الاصطناعي (Google Gemini & Anthropic Claude)</span>
+                    </h2>
+                    <span className="px-2 py-0.5 rounded-lg text-[11px] font-bold bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
+                      {claudeApiKey && (preferredProvider === 'claude' || !userApiKey)
+                        ? '✓ Claude مفعل'
+                        : userApiKey
+                        ? '✓ Gemini مفعل'
+                        : 'المحرك العلمي المدمج مفعل'}
+                    </span>
+                  </div>
                   <p className={`text-xs ${themeClasses.mutedText}`}>
                     اربط مفتاح Gemini أو Claude بخطوات سهلة وواضحة، مع استمرار عمل المحرك العلمي المدمج مجاناً وبلا انقطاع
                   </p>
                 </div>
                 <button
                   onClick={() => setIsApiModalOpen(true)}
-                  className="px-3.5 py-2 rounded-xl bg-[#d4af37] text-black font-bold text-xs shrink-0"
+                  className="w-full sm:w-auto px-3.5 py-2.5 rounded-xl bg-[#d4af37] text-black font-bold text-xs shrink-0 flex items-center justify-center gap-1.5"
                 >
-                  إعداد Gemini و Claude
+                  <Key className="w-3.5 h-3.5" />
+                  <span>إعدادات الربط (Gemini / Claude)</span>
                 </button>
               </div>
             </section>

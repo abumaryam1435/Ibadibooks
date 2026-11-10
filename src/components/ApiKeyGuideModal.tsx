@@ -18,6 +18,8 @@ import {
 } from 'lucide-react';
 import { copyTextToClipboard } from '../utils/clipboard';
 import { extractCleanApiKey, AIProviderType } from '../utils/apiKeyParser';
+import { apiFetch } from '../utils/netlifyClientBridge';
+
 
 interface ApiKeyGuideModalProps {
   isOpen: boolean;
@@ -168,7 +170,7 @@ export const ApiKeyGuideModal: React.FC<ApiKeyGuideModalProps> = ({
         headers['x-gemini-key'] = cleanKey;
       }
 
-      const res = await fetch('/api/ai/test-key', {
+      const res = await apiFetch('/api/ai/test-key', {
         method: 'POST',
         headers,
         body: JSON.stringify({

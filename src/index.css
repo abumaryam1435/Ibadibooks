@@ -150,3 +150,23 @@ mark,
 .theme-day .border-white\/20 {
   border-color: rgba(15, 23, 42, 0.18) !important;
 }
+
+/* ==========================================================================
+   SUPPRESS ANY INJECTED "POWERED BY NETLIFY" BADGES, WIDGETS, OR OVERLAYS
+   ========================================================================== */
+a[href*="netlify.com"],
+a[href*="netlify.app"][target="_blank"]:not(#root a),
+img[src*="netlify.com/img/global/badges"],
+iframe[src*="netlify"],
+div[data-netlify-deploy-drawer],
+div[class*="netlify-drawer"],
+#netlify-identity-widget,
+.netlify-identity-button {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+

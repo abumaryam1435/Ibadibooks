@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   X,
   ChevronRight,
@@ -24,6 +24,8 @@ import { copyTextToClipboard } from '../utils/clipboard';
 import { getLocalBookById } from '../services/localCatalog';
 import { proofreadAndVocalizeArabic } from '../utils/arabicProofreader';
 import { BookCover } from './BookCover';
+import { apiFetch } from '../utils/netlifyClientBridge';
+
 
 interface BookReaderModalProps {
   bookId: number | null;
@@ -79,17 +81,30 @@ export const BookReaderModal: React.FC<BookReaderModalProps> = ({
 
   // Client-side page cache for 0ms instant page flipping
   const pageCacheRef = useRef<Map<string, BookPageData>>(new Map());
+  const [cacheTick, setCacheTick] = useState<number>(0);
   const contentScrollRef = useRef<HTMLDivElement | null>(null);
+  const pageSheetRef = useRef<HTMLDivElement | null>(null);
+  const underlaySheetRef = useRef<HTMLDivElement | null>(null);
+  const edgeShadowRef = useRef<HTMLDivElement | null>(null);
+  const swipePillRef = useRef<HTMLDivElement | null>(null);
+  const swipeProgressRef = useRef<HTMLDivElement | null>(null);
 
-  // Touch Swipe State with real-time finger synchronization & correct RTL direction:
-  // - Swiping LEFT (dx < 0): Moves towards next page (التالية - زر اليسار)
-  // - Swiping RIGHT (dx > 0): Moves towards previous page (السابقة - زر اليمين)
+  // 60fps Hardware-Accelerated Touch Swipe Refs (Zero React re-renders during finger drag!)
+  // في الكتاب العربي (RTL):
+  // - السحب من اليسار إلى اليمين (dx > 0): يقلب الصفحة نحو اليمين للانتقال إلى «الصفحة التالية» (التالية)
+  // - السحب من اليمين إلى اليسار (dx < 0): يرجع الصفحة نحو اليسار للعودة إلى «الصفحة السابقة» (السابقة)
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
   const touchStartTime = useRef<number>(0);
   const isHorizontalDrag = useRef<boolean>(false);
-  const [swipeOffset, setSwipeOffset] = useState<number>(0);
-  const [isTouchDragging, setIsTouchDragging] = useState<boolean>(false);
+  const swipeOffsetRef = useRef<number>(0);
+  const isAnimatingTurnRef = useRef<boolean>(false);
+
+  // Low-frequency state only triggered when gesture direction or threshold state changes
+  const [swipeDirState, setSwipeDirState] = useState<'next' | 'prev' | null>(null);
+  const [swipeReadyState, setSwipeReadyState] = useState<boolean>(false);
+  const swipeDirRef = useRef<'next' | 'prev' | null>(null);
+  const swipeReadyRef = useRef<boolean>(false);
   const [pageTransitionDir, setPageTransitionDir] = useState<'next' | 'prev' | null>(null);
 
   // In-book fast search state
@@ -139,7 +154,7 @@ export const BookReaderModal: React.FC<BookReaderModalProps> = ({
     setLoadingMeta(true);
     const localBook = getLocalBookById(id);
     try {
-      const res = await fetch(`/api/book/${id}`);
+      const res = await apiFetch(`/api/book/${id}`);
       if (res.ok) {
         const data = await res.json();
         setBookDetails({ ...data, local: data.local || localBook });
@@ -160,13 +175,31 @@ export const BookReaderModal: React.FC<BookReaderModalProps> = ({
     const key = `${bId}:${pId}`;
     if (pageCacheRef.current.has(key)) return;
     try {
-      const res = await fetch(`/api/page/${bId}/${pId}`);
+      const res = await apiFetch(`/api/page/${bId}/${pId}`);
       if (res.ok) {
         const data = await res.json();
         pageCacheRef.current.set(key, data);
+        setCacheTick((t) => t + 1);
       }
     } catch {
       // ignore prefetch errors
+    }
+  };
+
+  const resetPageSheetStyles = () => {
+    if (pageSheetRef.current) {
+      pageSheetRef.current.style.transition = 'none';
+      pageSheetRef.current.style.transform = 'translate3d(0px, 0px, 0px) rotateY(0deg) scale(1)';
+      pageSheetRef.current.style.opacity = '1';
+      pageSheetRef.current.style.boxShadow = 'none';
+    }
+    if (underlaySheetRef.current) {
+      underlaySheetRef.current.style.transition = 'none';
+      underlaySheetRef.current.style.opacity = '0';
+      underlaySheetRef.current.style.transform = 'translate3d(0px, 0px, 0px) scale(0.96)';
+    }
+    if (edgeShadowRef.current) {
+      edgeShadowRef.current.style.opacity = '0';
     }
   };
 
@@ -176,7 +209,8 @@ export const BookReaderModal: React.FC<BookReaderModalProps> = ({
     if (cached) {
       setPageData(cached);
       setPageSearchInput(String(cached.page_id || pId));
-      contentScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+      contentScrollRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+      resetPageSheetStyles();
       prefetchAdjacentPage(bId, cached.next_page_id);
       prefetchAdjacentPage(bId, cached.prev_page_id);
       return;
@@ -184,13 +218,14 @@ export const BookReaderModal: React.FC<BookReaderModalProps> = ({
 
     setLoadingPage(true);
     try {
-      const res = await fetch(`/api/page/${bId}/${pId}`);
+      const res = await apiFetch(`/api/page/${bId}/${pId}`);
       if (res.ok) {
         const data = await res.json();
         pageCacheRef.current.set(cacheKey, data);
         setPageData(data);
         setPageSearchInput(String(data.page_id || pId));
-        contentScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+        contentScrollRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+        resetPageSheetStyles();
         prefetchAdjacentPage(bId, data.next_page_id);
         prefetchAdjacentPage(bId, data.prev_page_id);
       }
@@ -206,14 +241,57 @@ export const BookReaderModal: React.FC<BookReaderModalProps> = ({
     setPageTransitionDir(dir);
     setCurrentPageId(targetPageId);
     setIsPagePickerOpen(false);
-    setTimeout(() => setPageTransitionDir(null), 200);
+    setTimeout(() => setPageTransitionDir(null), 220);
   };
 
-  // Real-time Synchronized Touch Swipe Handlers (حركة الصفحة تتزامن مع حركة اللمس بالاتجاه الصحيح)
-  // - Swiping LEFT (dx < 0): Page translates left in real-time -> turns forward to NEXT page (التالية)
-  // - Swiping RIGHT (dx > 0): Page translates right in real-time -> turns backward to PREVIOUS page (السابقة)
+  // Apply 60fps direct-DOM interactive page physics during finger drag
+  const applyInteractiveDragTransform = (dx: number) => {
+    const viewportW = Math.max(320, window.innerWidth || 375);
+    const progress = Math.min(1, Math.abs(dx) / Math.min(240, viewportW * 0.55));
+    const rotateDeg = Math.max(-12, Math.min(12, -(dx / viewportW) * 16));
+    const activeScale = 1 - progress * 0.025;
+
+    if (pageSheetRef.current) {
+      pageSheetRef.current.style.transition = 'none';
+      pageSheetRef.current.style.transformOrigin = dx >= 0 ? 'right center' : 'left center';
+      pageSheetRef.current.style.transform = ` perspective(1200px) translate3d(${dx}px, 0px, 0px) rotateY(${rotateDeg}deg) scale(${activeScale})`;
+      pageSheetRef.current.style.opacity = `${Math.max(0.82, 1 - progress * 0.16)}`;
+      const shadowSide = dx >= 0 ? -18 : 18;
+      pageSheetRef.current.style.boxShadow = `${shadowSide}px 12px 38px rgba(0, 0, 0, ${0.18 + progress * 0.28})`;
+    }
+
+    if (underlaySheetRef.current) {
+      const underScale = 0.94 + progress * 0.06;
+      const underShift = (dx >= 0 ? -1 : 1) * (1 - progress) * 28;
+      underlaySheetRef.current.style.transition = 'none';
+      underlaySheetRef.current.style.opacity = `${Math.min(1, 0.25 + progress * 0.75)}`;
+      underlaySheetRef.current.style.transform = `translate3d(${underShift}px, 0px, 0px) scale(${underScale})`;
+    }
+
+    if (edgeShadowRef.current) {
+      edgeShadowRef.current.style.opacity = `${Math.min(0.85, progress * 0.9)}`;
+      edgeShadowRef.current.style.background =
+        dx >= 0
+          ? 'linear-gradient(to right, rgba(212,175,55,0.22), rgba(0,0,0,0.45), transparent)'
+          : 'linear-gradient(to left, rgba(212,175,55,0.22), rgba(0,0,0,0.45), transparent)';
+    }
+
+    if (swipePillRef.current) {
+      const pillShift = Math.max(-26, Math.min(26, dx * 0.15));
+      swipePillRef.current.style.transform = `translate3d(${pillShift}px, 0px, 0px) scale(${
+        Math.abs(dx) >= 52 ? 1.04 : 0.98
+      })`;
+    }
+
+    if (swipeProgressRef.current) {
+      const thresholdPct = Math.min(100, Math.round((Math.abs(dx) / 52) * 100));
+      swipeProgressRef.current.style.width = `${thresholdPct}%`;
+    }
+  };
+
+  // Real-time 60fps Synchronized Touch Swipe Handlers (حركة الصفحة تتفاعل بسلاسة فورية مع الإصبع)
   const handleTouchStart = (e: React.TouchEvent) => {
-    if (activeTab !== 'read' || isPagePickerOpen || loadingPage) return;
+    if (activeTab !== 'read' || isPagePickerOpen || loadingPage || isAnimatingTurnRef.current) return;
     const selection = window.getSelection();
     if (selection && selection.toString().length > 0) return;
 
@@ -221,8 +299,9 @@ export const BookReaderModal: React.FC<BookReaderModalProps> = ({
     touchStartY.current = e.touches[0].clientY;
     touchStartTime.current = Date.now();
     isHorizontalDrag.current = false;
-    setIsTouchDragging(false);
-    setSwipeOffset(0);
+    swipeOffsetRef.current = 0;
+    swipeDirRef.current = null;
+    swipeReadyRef.current = false;
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
@@ -230,6 +309,7 @@ export const BookReaderModal: React.FC<BookReaderModalProps> = ({
       activeTab !== 'read' ||
       isPagePickerOpen ||
       loadingPage ||
+      isAnimatingTurnRef.current ||
       touchStartX.current === null ||
       touchStartY.current === null
     )
@@ -240,55 +320,133 @@ export const BookReaderModal: React.FC<BookReaderModalProps> = ({
 
     // Detect if this is an intentional horizontal page swipe rather than a vertical scroll
     if (!isHorizontalDrag.current) {
-      if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.15) {
+      if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) * 1.1) {
         isHorizontalDrag.current = true;
-        setIsTouchDragging(true);
       } else if (Math.abs(dy) > 12) {
-        // User is scrolling vertically through text
+        // User is scrolling vertically through text; abort horizontal tracking
+        touchStartX.current = null;
+        touchStartY.current = null;
+        return;
+      } else {
         return;
       }
     }
 
-    if (isHorizontalDrag.current) {
-      // 1:1 Real-time page movement synchronized with finger touch
-      let effectiveOffset = dx;
-
-      // Gentle rubber-band resistance when at boundaries of book
-      if (dx < 0 && !pageData?.next_page_id) {
-        effectiveOffset = dx * 0.22;
-      } else if (dx > 0 && !pageData?.prev_page_id) {
-        effectiveOffset = dx * 0.22;
-      }
-
-      setSwipeOffset(effectiveOffset);
+    // Smooth rubber-band resistance at the first/last page of the Arabic book:
+    // dx > 0 (Swiping Left-to-Right -> Next Page «التالية»)
+    // dx < 0 (Swiping Right-to-Left -> Previous Page «السابقة»)
+    let effectiveOffset = dx;
+    if (dx > 0 && !pageData?.next_page_id) {
+      effectiveOffset = dx * 0.24;
+    } else if (dx < 0 && !pageData?.prev_page_id) {
+      effectiveOffset = dx * 0.24;
     }
+
+    swipeOffsetRef.current = effectiveOffset;
+
+    // Update low-frequency React state ONLY when direction or threshold readiness changes
+    const nextDir: 'next' | 'prev' = effectiveOffset >= 0 ? 'next' : 'prev';
+    if (swipeDirRef.current !== nextDir) {
+      swipeDirRef.current = nextDir;
+      setSwipeDirState(nextDir);
+    }
+
+    const isReady = Math.abs(effectiveOffset) >= 52;
+    if (swipeReadyRef.current !== isReady) {
+      swipeReadyRef.current = isReady;
+      setSwipeReadyState(isReady);
+    }
+
+    // Update GPU transforms directly at 60fps without triggering React re-renders
+    applyInteractiveDragTransform(effectiveOffset);
   };
 
   const handleTouchEnd = () => {
     if (activeTab !== 'read' || touchStartX.current === null) return;
 
-    const dx = swipeOffset;
+    const dx = swipeOffsetRef.current;
     const elapsed = Math.max(1, Date.now() - touchStartTime.current);
     const velocity = Math.abs(dx) / elapsed; // px per ms
-    const threshold = 48; // minimum drag distance in px
-    const isFlick = velocity > 0.35 && Math.abs(dx) > 22;
-
-    setIsTouchDragging(false);
-
-    // Direction:
-    // dx < 0 (Swiped Left): advances to NEXT page (التالية)
-    if ((dx <= -threshold || (dx < -22 && isFlick)) && pageData?.next_page_id) {
-      goToPage(pageData.next_page_id, 'next');
-    }
-    // dx > 0 (Swiped Right): goes back to PREVIOUS page (السابقة)
-    else if ((dx >= threshold || (dx > 22 && isFlick)) && pageData?.prev_page_id) {
-      goToPage(pageData.prev_page_id, 'prev');
-    }
+    const threshold = 52; // minimum drag distance in px
+    const isFlick = velocity > 0.32 && Math.abs(dx) > 22;
 
     touchStartX.current = null;
     touchStartY.current = null;
+
+    if (!isHorizontalDrag.current || Math.abs(dx) < 3) {
+      isHorizontalDrag.current = false;
+      swipeOffsetRef.current = 0;
+      setSwipeDirState(null);
+      setSwipeReadyState(false);
+      resetPageSheetStyles();
+      return;
+    }
+
     isHorizontalDrag.current = false;
-    setSwipeOffset(0);
+
+    const canTurnNext = (dx >= threshold || (dx > 22 && isFlick)) && Boolean(pageData?.next_page_id);
+    const canTurnPrev = (dx <= -threshold || (dx < -22 && isFlick)) && Boolean(pageData?.prev_page_id);
+
+    if (canTurnNext || canTurnPrev) {
+      const targetId = canTurnNext ? pageData!.next_page_id! : pageData!.prev_page_id!;
+      const turnDir: 'next' | 'prev' = canTurnNext ? 'next' : 'prev';
+      const viewportW = Math.max(320, window.innerWidth || 375);
+      const exitX = canTurnNext ? Math.round(viewportW * 0.92) : -Math.round(viewportW * 0.92);
+      const exitRotate = canTurnNext ? -14 : 14;
+
+      isAnimatingTurnRef.current = true;
+
+      if (pageSheetRef.current) {
+        pageSheetRef.current.style.transition =
+          'transform 190ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease-out';
+        pageSheetRef.current.style.transform = `perspective(1200px) translate3d(${exitX}px, 0px, 0px) rotateY(${exitRotate}deg) scale(0.97)`;
+        pageSheetRef.current.style.opacity = '0';
+      }
+
+      if (underlaySheetRef.current) {
+        underlaySheetRef.current.style.transition =
+          'transform 190ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease-out';
+        underlaySheetRef.current.style.transform = 'translate3d(0px, 0px, 0px) scale(1)';
+        underlaySheetRef.current.style.opacity = '1';
+      }
+
+      setTimeout(() => {
+        swipeOffsetRef.current = 0;
+        swipeDirRef.current = null;
+        swipeReadyRef.current = false;
+        setSwipeDirState(null);
+        setSwipeReadyState(false);
+        isAnimatingTurnRef.current = false;
+        resetPageSheetStyles();
+        goToPage(targetId, turnDir);
+      }, 175);
+    } else {
+      // Smooth spring-back when swipe is cancelled before threshold
+      if (pageSheetRef.current) {
+        pageSheetRef.current.style.transition =
+          'transform 250ms cubic-bezier(0.22, 1, 0.36, 1), opacity 220ms ease-out, box-shadow 220ms ease-out';
+        pageSheetRef.current.style.transform = 'perspective(1200px) translate3d(0px, 0px, 0px) rotateY(0deg) scale(1)';
+        pageSheetRef.current.style.opacity = '1';
+        pageSheetRef.current.style.boxShadow = 'none';
+      }
+      if (underlaySheetRef.current) {
+        underlaySheetRef.current.style.transition =
+          'transform 240ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms ease-out';
+        underlaySheetRef.current.style.transform = 'translate3d(0px, 0px, 0px) scale(0.95)';
+        underlaySheetRef.current.style.opacity = '0';
+      }
+      if (edgeShadowRef.current) {
+        edgeShadowRef.current.style.transition = 'opacity 200ms ease-out';
+        edgeShadowRef.current.style.opacity = '0';
+      }
+      setTimeout(() => {
+        swipeOffsetRef.current = 0;
+        swipeDirRef.current = null;
+        swipeReadyRef.current = false;
+        setSwipeDirState(null);
+        setSwipeReadyState(false);
+      }, 220);
+    }
   };
 
   const executeInBookSearch = async (
@@ -306,7 +464,7 @@ export const BookReaderModal: React.FC<BookReaderModalProps> = ({
     setSearchingBook(true);
     setHasSearchedBook(true);
     try {
-      const res = await fetch(
+      const res = await apiFetch(
         `/api/search/pages?q=${encodeURIComponent(
           q
         )}&book_id=${bookId}&match=${m}&search_in=${f}&morphology=${morph}&limit=30`
@@ -366,17 +524,32 @@ export const BookReaderModal: React.FC<BookReaderModalProps> = ({
     setTimeout(() => setCopiedCitation(false), 2000);
   };
 
-  // Process page text locally in 0ms without any API consumption (fixes confirmed typos like الحج المبروز -> الحج المبرور
-  // and protects Quranic verses ﴿...﴾ in Mushaf script)
-  const processedBody = proofreadAndVocalizeArabic(pageData?.body || '', {
-    fixTypos: true,
-    applyTashkeel: enableTashkeel,
-  });
+  // Memoize Arabic proofreading & vocalization so touch gestures never re-run text processing
+  const processedBody = useMemo(
+    () =>
+      proofreadAndVocalizeArabic(pageData?.body || '', {
+        fixTypos: true,
+        applyTashkeel: enableTashkeel,
+      }),
+    [pageData?.body, enableTashkeel]
+  );
 
-  const processedFoot = proofreadAndVocalizeArabic(pageData?.foot || '', {
-    fixTypos: true,
-    applyTashkeel: enableTashkeel,
-  });
+  const processedFoot = useMemo(
+    () =>
+      proofreadAndVocalizeArabic(pageData?.foot || '', {
+        fixTypos: true,
+        applyTashkeel: enableTashkeel,
+      }),
+    [pageData?.foot, enableTashkeel]
+  );
+
+  // Cached adjacent page data for live interactive underlay preview while dragging
+  const adjacentPreviewPage = useMemo(() => {
+    if (!bookId || !pageData || !swipeDirState) return null;
+    const targetId = swipeDirState === 'next' ? pageData.next_page_id : pageData.prev_page_id;
+    if (!targetId) return null;
+    return pageCacheRef.current.get(`${bookId}:${targetId}`) || null;
+  }, [bookId, pageData, swipeDirState, cacheTick]);
 
   const allCorrections = processedBody.corrections;
 
@@ -657,86 +830,143 @@ export const BookReaderModal: React.FC<BookReaderModalProps> = ({
           )}
         </div>
 
-        {/* Floating Touch Swipe Visual Indicator (حركة تفاعلية تتزامن مع السحب بالاتجاه الصحيح) */}
-        {swipeOffset !== 0 && activeTab === 'read' && (
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 pointer-events-none transition-transform duration-100">
+        {/* Floating Touch Swipe Visual Indicator (شريط تفاعلي متزامن مع السحب بالاتجاه الموافق للكتاب العربي) */}
+        {swipeDirState && activeTab === 'read' && (
+          <div className="fixed top-28 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
             <div
-              className={`px-4 py-2.5 rounded-2xl backdrop-blur-md border text-xs font-bold shadow-2xl flex items-center gap-2 transition ${
-                Math.abs(swipeOffset) >= 48
-                  ? 'bg-black/90 border-[#d4af37] text-[#d4af37] scale-105 shadow-[#d4af37]/20 ring-1 ring-[#d4af37]/40'
-                  : 'bg-black/80 border-white/20 text-gray-200'
+              ref={swipePillRef}
+              className={`px-4 py-2 rounded-2xl backdrop-blur-md border text-xs font-bold shadow-2xl flex flex-col items-center gap-1.5 transition-colors duration-150 ${
+                swipeReadyState
+                  ? 'bg-black/95 border-[#d4af37] text-[#d4af37] shadow-[#d4af37]/25 ring-1 ring-[#d4af37]/40'
+                  : 'bg-black/85 border-white/20 text-gray-200'
               }`}
             >
-              {swipeOffset < 0 ? (
-                // Dragging LEFT -> Next Page (التالية)
-                pageData?.next_page_id ? (
-                  <>
-                    <ChevronLeft className="w-4 h-4 text-[#d4af37] animate-pulse" />
-                    <span>
-                      {Math.abs(swipeOffset) >= 48 ? 'أفلت للانتقال إلى' : 'سحب لـ'}{' '}
-                      الصفحة التالية (ص {pageData.next_page_id})
-                    </span>
-                  </>
+              <div className="flex items-center gap-2">
+                {swipeDirState === 'next' ? (
+                  // Dragging Left-to-Right (dx > 0) -> Next Page in Arabic Book (التالية)
+                  pageData?.next_page_id ? (
+                    <>
+                      <ChevronLeft className="w-4 h-4 text-[#d4af37]" />
+                      <span>
+                        {swipeReadyState ? 'أفلت للانتقال إلى' : 'اسحب لليمين لـ'}{' '}
+                        الصفحة التالية (ص {pageData.next_page_id})
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <ChevronLeft className="w-4 h-4 opacity-50" />
+                      <span>نهاية الكتاب (آخر صفحة)</span>
+                    </>
+                  )
                 ) : (
-                  <>
-                    <ChevronLeft className="w-4 h-4 opacity-50" />
-                    <span>نهاية الكتاب (آخر صفحة)</span>
-                  </>
-                )
-              ) : (
-                // Dragging RIGHT -> Previous Page (السابقة)
-                pageData?.prev_page_id ? (
-                  <>
-                    <span>
-                      {Math.abs(swipeOffset) >= 48 ? 'أفلت للانتقال إلى' : 'سحب لـ'}{' '}
-                      الصفحة السابقة (ص {pageData.prev_page_id})
-                    </span>
-                    <ChevronRight className="w-4 h-4 text-[#d4af37] animate-pulse" />
-                  </>
-                ) : (
-                  <>
-                    <span>بداية الكتاب (أول صفحة)</span>
-                    <ChevronRight className="w-4 h-4 opacity-50" />
-                  </>
-                )
-              )}
+                  // Dragging Right-to-Left (dx < 0) -> Previous Page in Arabic Book (السابقة)
+                  pageData?.prev_page_id ? (
+                    <>
+                      <span>
+                        {swipeReadyState ? 'أفلت للانتقال إلى' : 'اسحب لليسار لـ'}{' '}
+                        الصفحة السابقة (ص {pageData.prev_page_id})
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-[#d4af37]" />
+                    </>
+                  ) : (
+                    <>
+                      <span>بداية الكتاب (أول صفحة)</span>
+                      <ChevronRight className="w-4 h-4 opacity-50" />
+                    </>
+                  )
+                )}
+              </div>
+              <div className="w-36 h-1 rounded-full bg-white/15 overflow-hidden">
+                <div
+                  ref={swipeProgressRef}
+                  className="h-full bg-[#d4af37] rounded-full transition-none"
+                />
+              </div>
             </div>
           </div>
         )}
 
-        {/* Main Content Area with 1:1 Synchronized Real-time Touch Drag */}
+        {/* Main Content Area with 60fps Hardware-Accelerated Book Page Sheet & Live Adjacent Page Underlay */}
         <div
           ref={contentScrollRef}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
-          className="flex-1 overflow-y-auto p-4 sm:p-6 relative will-change-transform"
-          style={{
-            transform:
-              swipeOffset !== 0
-                ? `translateX(${swipeOffset}px)`
-                : pageTransitionDir === 'next'
-                ? 'translateX(-12px)'
-                : pageTransitionDir === 'prev'
-                ? 'translateX(12px)'
-                : 'none',
-            transition: isTouchDragging
-              ? 'none'
-              : 'transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.2s ease-out',
-            opacity: isTouchDragging
-              ? Math.max(0.68, 1 - Math.abs(swipeOffset) / 850)
-              : 1,
-          }}
+          onTouchCancel={handleTouchEnd}
+          className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 relative touch-pan-y select-text"
         >
           {activeTab === 'read' && (
-            <>
-              {loadingPage ? (
-                <div className="h-64 flex flex-col items-center justify-center gap-3 opacity-70">
-                  <Loader2 className="w-8 h-8 animate-spin text-[#d4af37]" />
-                  <p className="text-xs">جاري تحميل الصفحة من الموسوعة...</p>
+            <div className="relative min-h-full">
+              {/* Live Interactive Adjacent Page Underlay (تظهر الصفحة التالية أو السابقة خلف الورقة أثناء السحب) */}
+              {swipeDirState && (
+                <div
+                  ref={underlaySheetRef}
+                  aria-hidden="true"
+                  className={`pointer-events-none absolute inset-0 rounded-2xl border p-4 sm:p-5 overflow-hidden opacity-0 will-change-transform ${themeCard}`}
+                >
+                  {adjacentPreviewPage ? (
+                    <div className="space-y-3 opacity-90">
+                      <div className="flex items-center justify-between text-xs border-b border-[#d4af37]/25 pb-2">
+                        <span className="font-bold text-[#d4af37]">
+                          {swipeDirState === 'next' ? 'الصفحة التالية' : 'الصفحة السابقة'} — صفحة{' '}
+                          {adjacentPreviewPage.page_number || adjacentPreviewPage.page_id}
+                        </span>
+                        <span className="opacity-75">جزء {adjacentPreviewPage.part || 1}</span>
+                      </div>
+                      {adjacentPreviewPage.chapter_chain &&
+                        adjacentPreviewPage.chapter_chain.length > 0 && (
+                          <div className="px-2.5 py-1.5 rounded-xl bg-[#d4af37]/10 text-xs text-[#d4af37] font-medium truncate">
+                            {adjacentPreviewPage.chapter_chain.map((c) => c.title).join(' / ')}
+                          </div>
+                        )}
+                      <div
+                        className="font-naskh leading-loose line-clamp-12 opacity-90"
+                        style={{ fontSize: `${fontSize}px` }}
+                      >
+                        {adjacentPreviewPage.body
+                          ? adjacentPreviewPage.body.slice(0, 750)
+                          : 'صفحة جاهزة للعرض الفوري...'}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="h-48 flex items-center justify-center text-xs text-[#d4af37] font-bold">
+                      {swipeDirState === 'next'
+                        ? pageData?.next_page_id
+                          ? `الصفحة التالية (ص ${pageData.next_page_id})`
+                          : 'نهاية الكتاب'
+                        : pageData?.prev_page_id
+                        ? `الصفحة السابقة (ص ${pageData.prev_page_id})`
+                        : 'بداية الكتاب'}
+                    </div>
+                  )}
                 </div>
-              ) : pageData ? (
-                <div className="space-y-4 pb-8">
+              )}
+
+              {/* Spine / Page Curl Dynamic Shadow */}
+              <div
+                ref={edgeShadowRef}
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-y-0 left-0 right-0 z-10 rounded-2xl opacity-0 transition-none"
+              />
+
+              {/* Active Book Page Sheet (يتحرك 1:1 مع الإصبع بسرعة 60 إطار/ثانية) */}
+              <div
+                ref={pageSheetRef}
+                className={`relative z-20 will-change-transform rounded-2xl transition-transform duration-200 ${
+                  pageTransitionDir === 'next'
+                    ? 'animate-in fade-in slide-in-from-left-3 duration-200'
+                    : pageTransitionDir === 'prev'
+                    ? 'animate-in fade-in slide-in-from-right-3 duration-200'
+                    : ''
+                }`}
+              >
+                {loadingPage ? (
+                  <div className="h-64 flex flex-col items-center justify-center gap-3 opacity-70">
+                    <Loader2 className="w-8 h-8 animate-spin text-[#d4af37]" />
+                    <p className="text-xs">جاري تحميل الصفحة من الموسوعة...</p>
+                  </div>
+                ) : pageData ? (
+                  <div className="space-y-4 pb-8">
                   {/* Print-Numbering Status, Tashkeel & Copy Controls */}
                   <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                     <span
@@ -811,7 +1041,7 @@ export const BookReaderModal: React.FC<BookReaderModalProps> = ({
                   <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-white/5 border border-white/5 text-[11px] opacity-75">
                     <span className="flex items-center gap-1.5">
                       <Hand className="w-3.5 h-3.5 text-[#d4af37] shrink-0" />
-                      <span>اسحب الشاشة لليسار ← للصفحة التالية، أو لليمين → للسابقة (حركة فورية متزامنة)</span>
+                      <span>اسحب الصفحة لليمين (→) للصفحة التالية، أو لليسار (←) للسابقة بحركة تفاعلية متزامنة</span>
                     </span>
                   </div>
 
@@ -862,7 +1092,8 @@ export const BookReaderModal: React.FC<BookReaderModalProps> = ({
                   لم يتم العثور على نص لهذه الصفحة.
                 </div>
               )}
-            </>
+              </div>
+            </div>
           )}
 
           {activeTab === 'toc' && (

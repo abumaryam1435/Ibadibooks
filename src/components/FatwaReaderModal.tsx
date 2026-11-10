@@ -13,6 +13,8 @@ import {
 import { FatwaItem } from '../types';
 import { copyTextToClipboard } from '../utils/clipboard';
 import { proofreadAndVocalizeArabic } from '../utils/arabicProofreader';
+import { apiFetch } from '../utils/netlifyClientBridge';
+
 
 interface FatwaReaderModalProps {
   fatwaId: number | null;
@@ -50,7 +52,7 @@ export const FatwaReaderModal: React.FC<FatwaReaderModalProps> = ({
   const fetchFatwa = async (id: number) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/fatwa/${id}`);
+      const res = await apiFetch(`/api/fatwa/${id}`);
       if (res.ok) {
         const data = await res.json();
         setFatwa(data);
@@ -118,67 +120,80 @@ export const FatwaReaderModal: React.FC<FatwaReaderModalProps> = ({
       <div
         className={`w-full max-w-2xl max-h-[92dvh] overflow-y-auto rounded-t-3xl sm:rounded-3xl border shadow-2xl flex flex-col ${themeBg}`}
       >
-        {/* Header */}
-        <div className="sticky top-0 z-10 px-4 sm:px-5 py-3.5 border-b border-white/10 bg-inherit flex items-start justify-between gap-2">
-          <div className="flex items-start gap-2.5 min-w-0 flex-1">
-            <div className="w-9 h-9 rounded-xl bg-[#d4af37]/15 border border-[#d4af37]/40 flex items-center justify-center text-[#d4af37] shrink-0 mt-0.5">
-              <MessageSquareQuote className="w-5 h-5" />
+        {/* Header (Full-width Fatwa title on mobile so long titles never get squeezed) */}
+        <div className="sticky top-0 z-10 px-4 sm:px-5 py-3 border-b border-white/10 bg-inherit flex flex-col gap-2">
+          <div className="flex items-start justify-between gap-2.5">
+            <div className="flex items-start gap-2.5 min-w-0 flex-1">
+              <div className="w-9 h-9 rounded-xl bg-[#d4af37]/15 border border-[#d4af37]/40 flex items-center justify-center text-[#d4af37] shrink-0 mt-0.5">
+                <MessageSquareQuote className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 className="font-extrabold text-sm sm:text-base leading-snug break-words">
+                  {fatwa?.title || `فتوى رقم #${fatwaId}`}
+                </h2>
+                <p className="text-xs opacity-80 break-words mt-0.5">
+                  {fatwa?.mufti?.name || 'خزانة الفتاوى بالموسوعة'}
+                </p>
+              </div>
             </div>
-            <div className="min-w-0 flex-1">
-              <h2 className="font-bold text-sm sm:text-base leading-snug break-words">
-                {fatwa?.title || `فتوى رقم #${fatwaId}`}
-              </h2>
-              <p className="text-xs opacity-80 break-words mt-0.5">
-                {fatwa?.mufti?.name || 'خزانة الفتاوى بالموسوعة'}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-1 shrink-0">
-            {fatwa && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setEnableTashkeel((p) => !p)}
-                  className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold border transition ${
-                    enableTashkeel
-                      ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
-                      : 'border-white/10 opacity-70'
-                  }`}
-                >
-                  {enableTashkeel ? 'التشكيل مفعّل' : 'تفعيل التشكيل'}
-                </button>
-                <button
-                  onClick={() =>
-                    onToggleBookmark({
-                      id: bookmarkKey,
-                      type: 'fatwa',
-                      title: fatwa.title,
-                      subtitle: `المفتي: ${fatwa.mufti?.name || ''}`,
-                      fatwaId: fatwa.fatwa_id,
-                      snippet: fatwa.answer?.slice(0, 160),
-                    })
-                  }
-                  className={`p-2 rounded-xl transition ${
-                    saved ? 'text-[#d4af37] bg-[#d4af37]/15' : 'opacity-70 hover:bg-white/10'
-                  }`}
-                  title="حفظ في المفضلة"
-                >
-                  <Bookmark className="w-4 h-4 fill-current" />
-                </button>
-                <button
-                  onClick={handleCopy}
-                  className="p-2 rounded-xl hover:bg-white/10 text-[#d4af37]"
-                  title="نسخ الفتوى كاملة"
-                >
-                  {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                </button>
-              </>
-            )}
-            <button onClick={onClose} className="p-2 rounded-xl hover:bg-white/10 opacity-75">
+            <button onClick={onClose} className="p-2 rounded-xl hover:bg-white/10 opacity-80 shrink-0">
               <X className="w-5 h-5" />
             </button>
           </div>
+
+          {fatwa && (
+            <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-white/10">
+              <button
+                type="button"
+                onClick={() => setEnableTashkeel((p) => !p)}
+                className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold border transition ${
+                  enableTashkeel
+                    ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
+                    : 'border-white/10 opacity-70'
+                }`}
+              >
+                {enableTashkeel ? 'التشكيل مفعّل' : 'تفعيل التشكيل'}
+              </button>
+              <button
+                onClick={() =>
+                  onToggleBookmark({
+                    id: bookmarkKey,
+                    type: 'fatwa',
+                    title: fatwa.title,
+                    subtitle: `المفتي: ${fatwa.mufti?.name || ''}`,
+                    fatwaId: fatwa.fatwa_id,
+                    snippet: fatwa.answer?.slice(0, 160),
+                  })
+                }
+                className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold border flex items-center gap-1 transition ${
+                  saved
+                    ? 'text-[#d4af37] bg-[#d4af37]/15 border-[#d4af37]/40'
+                    : 'border-white/10 opacity-80 hover:bg-white/10'
+                }`}
+                title="حفظ في المفضلة"
+              >
+                <Bookmark className="w-3.5 h-3.5 fill-current" />
+                <span>{saved ? 'محفوظة' : 'حفظ'}</span>
+              </button>
+              <button
+                onClick={handleCopy}
+                className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-[#d4af37]/15 border border-[#d4af37]/30 text-[#d4af37] flex items-center gap-1"
+                title="نسخ الفتوى كاملة"
+              >
+                {copied ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>تم النسخ</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>نسخ الفتوى</span>
+                  </>
+                )}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Body */}
@@ -221,7 +236,7 @@ export const FatwaReaderModal: React.FC<FatwaReaderModalProps> = ({
               {/* Answer */}
               <div className="space-y-2">
                 <span className="text-xs font-bold text-emerald-400 block">الجواب:</span>
-                <div className="font-naskh text-lg leading-[2.1] text-justify whitespace-pre-line">
+                <div className="font-naskh text-base sm:text-lg leading-[2.0] sm:leading-[2.1] text-right sm:text-justify break-words whitespace-pre-line">
                   {renderTextWithQuran(processedAnswer.text)}
                 </div>
               </div>

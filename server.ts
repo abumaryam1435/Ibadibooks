@@ -10,8 +10,11 @@ import {
   detectScholarlyMode,
   findMatchingBookInCatalog,
   extractCleanTopicAndKeywords,
+  findRelevantCatalogBooks,
   filterAndRankRelevantPages,
   filterAndRankRelevantFatawa,
+  buildInfographicData,
+  buildPresentationSlides,
   buildGeminiScholarlyPrompt,
   composeGroundedScholarlyResponse,
   buildFollowUpSuggestions,
@@ -797,19 +800,23 @@ app.post('/api/ai/ask', async (req, res) => {
       Array.isArray(history) ? history : []
     );
 
-    // 2. Detect the effective scholarly mode (chat, book_summary, khutbah, lesson, article, tafsir_hadith)
-    const { mode: effectiveMode, label: modeLabel } = detectScholarlyMode(
-      cleanQuestion,
-      requestedMode,
-      Boolean(matchedBook)
-    );
+    // 2. Detect the effective scholarly mode (chat, book_summary, khutbah, lesson, article, tafsir_hadith, infographic, presentation, document)
+    const {
+      mode: effectiveMode,
+      label: modeLabel,
+      requestedArtifact,
+    } = detectScholarlyMode(cleanQuestion, requestedMode, Boolean(matchedBook));
 
-    // 3. Extract pure topic & keywords (stripping framing words like "اكتب لي خطبة جمعة عن" or "درسا شاملا في")
+    // 3. Extract pure topic & keywords (stripping framing & file-format words)
     const { coreTopic, searchQuery, coreTerms, quotedPhrase } = extractCleanTopicAndKeywords(
       cleanQuestion,
       matchedBook,
       Array.isArray(history) ? history : []
     );
+
+    const catalogMatches = matchedBook
+      ? [matchedBook]
+      : findRelevantCatalogBooks(coreTerms, cleanQuestion, catalogBooks);
 
     const cacheKey = `${cleanQuestion}::${effectiveMode}::${searchScope}::${
       matchedBook ? matchedBook.id : 'all'
@@ -1061,7 +1068,10 @@ app.post('/api/ai/ask', async (req, res) => {
     let finalAnswerText = '';
 
     const hasEnoughContext =
-      allContextPages.length > 0 || enrichedFatawa.length > 0 || Boolean(matchedBook && bookMetaAndToc);
+      allContextPages.length > 0 ||
+      enrichedFatawa.length > 0 ||
+      catalogMatches.length > 0 ||
+      Boolean(matchedBook && bookMetaAndToc);
 
     if (hasEnoughContext) {
       const { systemInstruction, promptContent } = buildGeminiScholarlyPrompt({
@@ -1072,6 +1082,7 @@ app.post('/api/ai/ask', async (req, res) => {
         bookMetaAndToc,
         pages: allContextPages,
         fatawa: enrichedFatawa,
+        catalogMatches,
         history: Array.isArray(history) ? history : [],
       });
 
@@ -1145,10 +1156,31 @@ app.post('/api/ai/ask', async (req, res) => {
         bookMetaAndToc,
         pages: allContextPages,
         fatawa: enrichedFatawa,
+        catalogMatches,
         totalBookHits,
         totalFatwaHits,
       });
     }
+
+    const infographicData = buildInfographicData({
+      coreTopic,
+      mode: effectiveMode,
+      matchedBook,
+      bookMetaAndToc,
+      pages: allContextPages,
+      fatawa: enrichedFatawa,
+      catalogMatches,
+    });
+
+    const slidesData = buildPresentationSlides({
+      coreTopic,
+      mode: effectiveMode,
+      matchedBook,
+      bookMetaAndToc,
+      pages: allContextPages,
+      fatawa: enrichedFatawa,
+      catalogMatches,
+    });
 
     const followUpSuggestions = buildFollowUpSuggestions(coreTopic, effectiveMode, matchedBook);
 
@@ -1156,6 +1188,7 @@ app.post('/api/ai/ask', async (req, res) => {
       question: cleanQuestion,
       modeUsed: effectiveMode,
       modeLabel,
+      requestedArtifact,
       coreTopic,
       searchQueryUsed: searchQuery,
       matchedBook: matchedBook
@@ -1168,6 +1201,8 @@ app.post('/api/ai/ask', async (req, res) => {
           }
         : null,
       answer: finalAnswerText,
+      infographicData,
+      slidesData,
       followUpSuggestions,
       sources: allContextPages.map((p) => ({
         book_id: p.book_id,
