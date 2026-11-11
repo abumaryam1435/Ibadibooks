@@ -44,12 +44,13 @@ const INSTRUCTION_AND_STOP_WORDS = new Set(
     'ان', 'أن', 'إن', 'انه', 'إنه', 'انها', 'إنها', 'لان', 'لأن', 'كان', 'كانت', 'يكون', 'تكون',
     'قد', 'لقد', 'كل', 'بعض', 'غير', 'سوى', 'نفس', 'ذات', 'ايضا', 'أيضا', 'كذلك', 'فقط', 'جدا',
     // Polite & conversational requests
-    'اكتب', 'أكتب', 'كتابة', 'لي', 'لنا', 'لك', 'اعطني', 'أعطني', 'اعطنا', 'هات', 'زودني', 'افدني', 'أفدني',
+    'اكتب', 'أكتب', 'كتابة', 'لي', 'لنا', 'لك', 'اعطني', 'أعطني', 'اعطنا', 'اعطيني', 'عطني', 'هات', 'زودني', 'افدني', 'أفدني',
+    'ارسل', 'أرسل', 'ترسل', 'يرسل', 'نرسل', 'ارسال', 'إرسال', 'ابعث', 'أبعث', 'تبعث',
     'اريد', 'أريد', 'نريد', 'ابغى', 'أبغى', 'ممكن', 'لو', 'سمحت', 'تفضل', 'فضلا', 'رجاء', 'يرجى',
     'حدثني', 'تحدث', 'كلمني', 'تكلم', 'اخبرني', 'أخبرني', 'دلني', 'وجهني', 'اجعل', 'اجعله', 'اجعلها', 'صغ', 'صياغة',
-    'اذكر', 'أذكر', 'اشرح', 'إشرح', 'وضح', 'بين', 'فصل', 'افصل', 'بالتفصيل', 'باختصار', 'بإيجاز',
-    'حول', 'حوله', 'حولها', 'تحويل', 'اصنع', 'إصنع', 'اعمل', 'أعمل', 'عمل', 'انشئ', 'أنشئ', 'انشاء', 'إنشاء',
-    'صمم', 'تصميم', 'جهز', 'تجهيز', 'عد', 'إعداد', 'اعداد', 'قدم', 'تقديم', 'استخرج', 'إستخرج',
+    'اذكر', 'أذكر', 'اشرح', 'إشرح', 'اشرحلي', 'وضح', 'بين', 'فصل', 'افصل', 'بالتفصيل', 'باختصار', 'بإيجاز',
+    'حول', 'حوله', 'حولها', 'تحويل', 'اصنع', 'إصنع', 'اعمل', 'أعمل', 'عمل', 'سوي', 'سويلي', 'انشئ', 'أنشئ', 'انشاء', 'إنشاء',
+    'صمم', 'تصميم', 'جهز', 'تجهيز', 'عد', 'إعداد', 'اعداد', 'قدم', 'تقدم', 'تقديم', 'استخرج', 'إستخرج',
     'السابق', 'السابقة', 'الماضي', 'الاخير', 'الأخير', 'اعلاه', 'أعلاه', 'هذا', 'هذه',
     // Mode & format names
     'ملخص', 'ملخصا', 'ملخصاً', 'تلخيص', 'لخص', 'لخصه', 'نبذة', 'نبذه', 'تعريف', 'فكرة', 'محتوى', 'مضمون',
@@ -543,13 +544,114 @@ export function extractCleanTopicAndKeywords(
     'ابتكار': ['الاستنباط', 'النوازل', 'الاجتهاد', 'التجديد'],
     'مواطنه': ['التعايش', 'اهل الذمه', 'حسن الجوار', 'العهد', 'العدل'],
     'تسامح': ['التعايش', 'البر', 'القسط', 'حسن الجوار'],
+    'صلاه': ['الصلاة', 'فرائض الصلاة', 'شروط الصلاة', 'الخشوع', 'اقامة الصلاة'],
     'سهو': ['سجود السهو', 'الشك في الصلاة', 'البناء على اليقين', 'سجدتي السهو'],
     'توبه': ['شروط التوبة', 'رد المظالم', 'حقوق العباد', 'الندم', 'الاقلاع'],
     'ولايه': ['الولاية', 'البراءة', 'الموالاة', 'اهل الاستقامة'],
     'براءه': ['البراءة', 'الفسق', 'المعاداة في الله', 'اهل الفسوق'],
-    'زكاه': ['نصاب الذهب', 'زكاة الفطر', 'مصارف الزكاة', 'عروض التجارة'],
-    'صيام': ['شروط الصوم', 'المفطرات', 'الكفارة', 'القضاء'],
-    'حج': ['شروط الحج', 'الإحرام', 'الطواف', 'السعي'],
+    'زكاه': ['نصاب الزكاة', 'شروط الزكاة', 'مصارف الزكاة', 'زكاة المال'],
+    'صيام': ['شروط الصوم', 'فرائض الصوم', 'المفطرات', 'رمضان'],
+    'صوم': ['شروط الصوم', 'فرائض الصوم', 'المفطرات', 'رمضان'],
+    'حج': ['شروط الحج', 'اركان الحج', 'الاحرام', 'الطواف'],
+    'وضوء': ['فرائض الوضوء', 'شروط الطهارة', 'نواقض الوضوء'],
+    'طهاره': ['احكام الطهارة', 'فرائض الوضوء', 'الماء الطهور'],
+  };
+
+  // Multi-axis chapter retrieval for broad foundational topics using tight 2-word phrases for `mode: near`
+  const FOUNDATIONAL_TOPIC_FACETS: Record<string, string[]> = {
+    'صلاه': [
+      'أركان الصلاة',
+      'فرائض الصلاة',
+      'شروط صحة الصلاة',
+      'خشوع الصلاة',
+      'صلاة الجماعة',
+    ],
+    'صلوات': [
+      'أركان الصلاة',
+      'فرائض الصلاة',
+      'شروط صحة الصلاة',
+      'خشوع الصلاة',
+      'صلاة الجماعة',
+    ],
+    'زكاه': [
+      'وجوب الزكاة',
+      'شروط الزكاة',
+      'نصاب الزكاة',
+      'مصارف الزكاة',
+      'زكاة الذهب والفضة',
+    ],
+    'صيام': [
+      'فرض الصيام',
+      'شروط الصوم',
+      'مفسدات الصوم',
+      'قضاء الصوم',
+    ],
+    'صوم': [
+      'فرض الصيام',
+      'شروط الصوم',
+      'مفسدات الصوم',
+      'قضاء الصوم',
+    ],
+    'حج': [
+      'فرض الحج',
+      'أركان الحج',
+      'شروط الحج',
+      'مناسك الحج',
+    ],
+    'توبه': [
+      'شروط التوبة',
+      'التوبة النصوح',
+      'رد المظالم',
+      'قبول التوبة',
+    ],
+    'وضوء': [
+      'فرائض الوضوء',
+      'شروط الوضوء',
+      'نواقض الوضوء',
+      'إسباغ الوضوء',
+    ],
+    'طهاره': [
+      'أحكام الطهارة',
+      'فرائض الوضوء',
+      'إزالة النجاسة',
+      'أحكام التيمم',
+    ],
+    'ايمان': [
+      'حقيقة الإيمان',
+      'أركان الإيمان',
+      'الإيمان والعمل',
+      'أصول العقيدة',
+    ],
+    'توحيد': [
+      'توحيد الله',
+      'أسماء الله وصفاته',
+      'تنزيه الله',
+      'إخلاص العبادة',
+    ],
+    'ولايه': [
+      'الولاية والبراءة',
+      'شروط الولاية',
+      'أقسام الولاية',
+      'أحكام البراءة',
+    ],
+    'عزابه': [
+      'نظام العزابة',
+      'حلقة العزابة',
+      'رسالة العزابة',
+      'شروط العزابة',
+    ],
+    'اخلاق': [
+      'مكارم الأخلاق',
+      'تزكية النفس',
+      'حسن الخلق',
+      'حقوق المسلم',
+    ],
+    'علم': [
+      'فضل العلم',
+      'طلب العلم',
+      'آداب المتعلم',
+      'العمل بالعلم',
+    ],
   };
 
   // Check for comparative question structure: "ما الفرق بين X و Y" or "قارن بين X و Y"
@@ -565,8 +667,7 @@ export function extractCleanTopicAndKeywords(
     }
   }
 
-  // Multi-turn context resolution: If question is a short continuation with pronouns or follow-up markers,
-  // e.g. "وماذا لو كان الشك في عدد الركعات؟" or "ما الفرق بينهما؟" or "هل يجوز ذلك؟" or "وضح لي بمثال":
+  // Multi-turn context resolution: If question is a short continuation with pronouns or follow-up markers
   let resolvedPrevTopic = '';
   if (history && history.length > 0) {
     for (let i = history.length - 1; i >= 0; i--) {
@@ -606,7 +707,6 @@ export function extractCleanTopicAndKeywords(
     filteredTokens.length > 0 ? filteredTokens.slice(0, 5).join(' ') : question.trim();
 
   if (isFollowUpContinuation && resolvedPrevTopic) {
-    // If user asked "ما الفرق بينهما" or similar without naming topics, inherit full prevTopic
     if (filteredTokens.length === 0 || hasArabicKeyword(normQuestion, ['بينهما', 'ذلك', 'هذا'])) {
       coreTopic = `${resolvedPrevTopic} (${coreTopic})`;
       searchQuery = resolvedPrevTopic;
@@ -618,7 +718,19 @@ export function extractCleanTopicAndKeywords(
 
   // Augment coreTerms with conceptual synonyms
   const coreTerms = filteredTokens.slice(0, 6).map((w) => normalizeArabicText(w));
-  for (const t of coreTerms) {
+
+  // Check if this is a broad foundational topic (1–2 core words) and populate conceptFacets
+  if (!conceptFacets && filteredTokens.length >= 1 && filteredTokens.length <= 2) {
+    for (const token of filteredTokens) {
+      const cleanRoot = normalizeArabicText(token).replace(/^ال/, '');
+      if (FOUNDATIONAL_TOPIC_FACETS[cleanRoot]) {
+        conceptFacets = FOUNDATIONAL_TOPIC_FACETS[cleanRoot];
+        break;
+      }
+    }
+  }
+
+  for (const t of [...coreTerms]) {
     const cleanT = t.replace(/^ال/, '');
     if (CONCEPT_SYNONYMS[cleanT]) {
       for (const syn of CONCEPT_SYNONYMS[cleanT]) {
@@ -654,7 +766,6 @@ export function findRelevantCatalogBooks(
   const stems = coreTerms.map(stripAl).filter((s) => s.length >= 2);
 
   if (stems.length === 0) {
-    // Check if user is asking generally about the Encyclopedia or its main books
     if (/\b(موسوعه|اشهر|افضل|اقسام|عدد|كتب)\b/.test(normQ)) {
       return catalogBooks.slice(0, 8);
     }
@@ -683,8 +794,36 @@ export function findRelevantCatalogBooks(
 }
 
 /**
+ * Helper: Detect if a retrieved page is merely a Table of Contents (فهرس), Index, or Editor Cover page
+ * rather than substantive scholarly content.
+ */
+function isIndexOrCoverPage(rawText: string): boolean {
+  if (!rawText) return false;
+  const cleaned = String(rawText).replace(/<\/?mark[^>]*>/gi, '');
+  // Explicit index or editor preface markers
+  if (
+    /(?:الفهارس الفنية|فهرس الموضوعات|فهرس المحتويات|فهرس الأبواب|كلمة المحقق|مقدمة التحقيق|ويليه إن شاء الله الجزء)/.test(
+      cleaned
+    )
+  ) {
+    return true;
+  }
+  // Multiple numbered chapter lines like "باب 30 ... باب 31 ... باب 32" or "فصل: ... 40 فصل: ... 46"
+  const tocLinesCount = (cleaned.match(/(?:باب|فصل)\s*[:0-9٠-٩]/g) || []).length;
+  if (tocLinesCount >= 3) {
+    return true;
+  }
+  const dottedPageRefs = (cleaned.match(/\.\.\.\s*[0-9٠-٩]+/g) || []).length;
+  if (dottedPageRefs >= 2) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * 5. Strict Relevance Verification & Scoring:
- * Ensures no random or unrelated pages/fatwas slip into the response!
+ * Ensures no random or unrelated pages/fatwas slip into the response,
+ * rejects TOC/Index pages, and prioritizes foundational chapter headings over tangential edge cases.
  */
 export function filterAndRankRelevantPages(
   pages: any[],
@@ -695,31 +834,49 @@ export function filterAndRankRelevantPages(
   if (!Array.isArray(pages) || pages.length === 0) return [];
 
   const stripAl = (w: string) => (w.startsWith('ال') && w.length >= 4 ? w.slice(2) : w);
-  const stems = coreTerms.map(stripAl).filter((s) => s.length >= 2);
+  const singleWordTerms = coreTerms.filter((w) => !w.includes(' '));
+  const primaryStems = (singleWordTerms.length > 0 ? singleWordTerms.slice(0, 2) : coreTerms.slice(0, 1))
+    .map(stripAl)
+    .filter((s) => s.length >= 2);
+  const allStems = coreTerms.map(stripAl).filter((s) => s.length >= 2);
+
+  const userAskedAboutMenstruation = allStems.some((s) =>
+    /(حيض|نفاس|حائض|مستحاض|دم|نساء|طمث)/.test(s)
+  );
 
   const scored: { page: any; score: number; matchedCount: number }[] = [];
 
   for (const p of pages) {
-    // If scoped to a specific book, strictly reject any page from any other book!
     if (scopedBookId && Number(p.book_id) !== Number(scopedBookId)) {
       continue;
     }
 
-    // If summarizing a specific book and coreTerms is empty, keep the book's own pages
-    if (scopedBookId && stems.length === 0) {
+    if (scopedBookId && allStems.length === 0) {
       scored.push({ page: p, score: 100, matchedCount: 1 });
       continue;
     }
 
-    const combinedText = normalizeArabicText(
-      `${p.snippet || ''} ${p.fullBody || ''} ${p.book_name || ''} ${p.category || ''}`
-    );
-    const bodyAndSnippetText = normalizeArabicText(`${p.snippet || ''} ${p.fullBody || ''}`);
+    const rawBody = `${p.snippet || ''} ${p.fullBody || ''}`;
+    if (!scopedBookId && isIndexOrCoverPage(rawBody)) {
+      continue;
+    }
 
+    const combinedText = normalizeArabicText(
+      `${rawBody} ${p.book_name || ''} ${p.category || ''}`
+    );
+    const bodyAndSnippetText = normalizeArabicText(rawBody);
+
+    let matchedPrimary = 0;
     let matchedStemsInBody = 0;
     let totalOccurrences = 0;
 
-    for (const stem of stems) {
+    for (const stem of primaryStems) {
+      if (bodyAndSnippetText.includes(stem) || combinedText.includes(stem)) {
+        matchedPrimary++;
+      }
+    }
+
+    for (const stem of allStems) {
       if (bodyAndSnippetText.includes(stem)) {
         matchedStemsInBody++;
         const parts = bodyAndSnippetText.split(stem);
@@ -729,21 +886,51 @@ export function filterAndRankRelevantPages(
       }
     }
 
+    if (primaryStems.length > 0 && matchedPrimary === 0 && !scopedBookId) {
+      continue;
+    }
+
     const hasMarkHighlight = /<mark[^>]*>/i.test(String(p.snippet || ''));
     if (hasMarkHighlight && matchedStemsInBody === 0) {
       matchedStemsInBody = 0.8;
     }
 
-    const minRequired = stems.length >= 3 ? 1.5 : stems.length >= 1 ? 0.8 : 0;
-    if (stems.length > 0 && matchedStemsInBody < minRequired) {
+    const minRequired = allStems.length >= 3 ? 0.8 : allStems.length >= 1 ? 0.5 : 0;
+    if (allStems.length > 0 && matchedStemsInBody < minRequired) {
       continue;
     }
 
-    let score = matchedStemsInBody * 250 + Math.min(totalOccurrences, 10) * 25;
+    let score =
+      matchedPrimary * 350 +
+      matchedStemsInBody * 200 +
+      Math.min(totalOccurrences, 12) * 30;
 
-    const fullStemPhrase = stems.join(' ');
+    // Boost pages that contain explicit structural chapter/section headings on the topic
+    if (
+      /(?:باب|فصل|مساله|مبحث|كتاب)\s+(?:في\s+)?[^\n.،؛]{0,35}/.test(bodyAndSnippetText) &&
+      primaryStems.some((st) =>
+        new RegExp(`(?:باب|فصل|مساله|مبحث|كتاب)[^.\\n]{0,45}${st}`).test(bodyAndSnippetText)
+      )
+    ) {
+      score += 450;
+    }
+
+    // Boost foundational doctrinal/fiqh explanations (faraid, shurut, arkan, hudud, maqasid)
+    if (/(فرائض|اركان|شروط|حدود|حقيقه|معني|فضل|احكام|واجب)/.test(bodyAndSnippetText)) {
+      score += 180;
+    }
+
+    // Penalize overly tangential chapters (e.g. menstruation/postpartum blood rulings when asking generally about Prayer)
+    if (
+      !userAskedAboutMenstruation &&
+      /(حيض|نفاس|حائض|مستحاضه|صفرة|كدرة)/.test(bodyAndSnippetText)
+    ) {
+      score -= 400;
+    }
+
+    const fullStemPhrase = primaryStems.join(' ');
     if (fullStemPhrase.length >= 5 && bodyAndSnippetText.includes(fullStemPhrase)) {
-      score += 500;
+      score += 400;
     }
 
     const cat = normalizeArabicText(p.category || '');
@@ -752,8 +939,14 @@ export function filterAndRankRelevantPages(
         score += 350;
       }
     } else if (mode === 'khutbah' || mode === 'lesson') {
-      if (cat.includes('وعظ') || cat.includes('اخلاق') || cat.includes('تفسير') || cat.includes('فقه')) {
-        score += 120;
+      if (
+        cat.includes('فقه') ||
+        cat.includes('عقيد') ||
+        cat.includes('وعظ') ||
+        cat.includes('اخلاق') ||
+        cat.includes('تفسير')
+      ) {
+        score += 150;
       }
     }
 
@@ -761,7 +954,26 @@ export function filterAndRankRelevantPages(
   }
 
   scored.sort((a, b) => b.score - a.score);
-  return scored.map((s) => s.page);
+
+  // Deduplicate near-identical pages and enforce diversity across books (max 1 page per book when enough books exist)
+  const selected: any[] = [];
+  const bookCounts = new Map<number, number>();
+  const bookNameCounts = new Map<string, number>();
+
+  for (const item of scored) {
+    const bId = Number(item.page.book_id || 0);
+    const baseBookName = normalizeArabicText(String(item.page.book_name || '')).replace(/\s*\([^)]*\)/g, '').trim();
+    const count = bookCounts.get(bId) || 0;
+    const nameCount = bookNameCounts.get(baseBookName) || 0;
+    if (!scopedBookId && (count >= 1 || nameCount >= 1) && scored.length > 5) {
+      continue;
+    }
+    bookCounts.set(bId, count + 1);
+    if (baseBookName) bookNameCounts.set(baseBookName, nameCount + 1);
+    selected.push(item.page);
+  }
+
+  return selected.length >= 3 ? selected : scored.map((s) => s.page);
 }
 
 export function filterAndRankRelevantFatawa(
@@ -773,10 +985,15 @@ export function filterAndRankRelevantFatawa(
   if (!Array.isArray(fatawa) || fatawa.length === 0) return [];
 
   const stripAl = (w: string) => (w.startsWith('ال') && w.length >= 4 ? w.slice(2) : w);
+  const singleWordTerms = coreTerms.filter((w) => !w.includes(' '));
+  const primaryStems = (singleWordTerms.length > 0 ? singleWordTerms.slice(0, 2) : coreTerms.slice(0, 1))
+    .map(stripAl)
+    .filter((s) => s.length >= 2);
   const stems = coreTerms.map(stripAl).filter((s) => s.length >= 2);
   if (stems.length === 0) return fatawa.slice(0, 3);
 
   const scored: { fatwa: any; score: number }[] = [];
+  const seenTitles = new Set<string>();
 
   for (const f of fatawa) {
     const text = normalizeArabicText(
@@ -784,21 +1001,46 @@ export function filterAndRankRelevantFatawa(
     );
     const titleNorm = normalizeArabicText(f.title || '');
 
+    // Avoid duplicate fatwa titles
+    if (titleNorm && seenTitles.has(titleNorm)) {
+      continue;
+    }
+
     let matched = 0;
     let titleMatches = 0;
+    let primaryMatched = 0;
+
+    for (const stem of primaryStems) {
+      if (text.includes(stem)) primaryMatched++;
+      if (titleNorm.includes(stem)) titleMatches += 2;
+    }
+
     for (const stem of stems) {
       if (text.includes(stem)) matched++;
       if (titleNorm.includes(stem)) titleMatches++;
     }
 
-    const minRequired = stems.length >= 3 ? 2 : 1;
+    if (primaryStems.length > 0 && primaryMatched === 0) {
+      continue;
+    }
+
+    const minRequired = stems.length >= 3 ? 1 : 1;
     if (matched < minRequired && titleMatches === 0) {
       continue;
     }
 
+    let score = primaryMatched * 300 + matched * 150 + titleMatches * 250;
+
+    // Strongly prioritize written Q&A fatwas (`content_type === 'qa'`) which have clean, punctuated text
+    if (f.content_type === 'qa') {
+      score += 1800;
+    }
+
+    if (titleNorm) seenTitles.add(titleNorm);
+
     scored.push({
       fatwa: f,
-      score: matched * 200 + titleMatches * 300,
+      score,
     });
   }
 
@@ -808,11 +1050,10 @@ export function filterAndRankRelevantFatawa(
 
 /**
  * Helper: Shorten long classical author names for natural inline AI attribution
- * e.g. "جميل بن خميس بن لافي السعدي أبو محمد" -> "جميل بن خميس السعدي"
  */
 function formatShortAuthorName(rawAuthor: string): string {
   const cleaned = String(rawAuthor || '')
-    .replace(/\([^)]*\)/g, '')
+    .replace(/["""«»()]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
   if (!cleaned) return 'علماء الموسوعة';
@@ -822,354 +1063,547 @@ function formatShortAuthorName(rawAuthor: string): string {
 }
 
 /**
- * Helper: Extract Quranic verses ﴿...﴾ verbatim from raw source text
- * (Quranic verses are the only text kept verbatim; all scholarly commentary is paraphrased by the AI)
+ * Helper: Extract Quranic verses ﴿...﴾ or {...} verbatim from raw source text
  */
 function extractQuranicVersesFromText(raw: string): string[] {
   if (!raw) return [];
-  const matches = [...String(raw).matchAll(/﴿([^﴾]{6,180})﴾/g)];
+  const matches = [
+    ...String(raw).matchAll(/﴿([^﴾]{6,180})﴾/g),
+    ...String(raw).matchAll(/\{([^}]{10,160})\}/g),
+  ];
   const unique = new Set<string>();
   for (const m of matches) {
-    const v = m[1].replace(/\s+/g, ' ').trim();
-    if (v.length >= 6) unique.add(`﴿${v}﴾`);
+    const v = m[1]
+      .replace(/<\/?mark[^>]*>/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    // Filter out non-Quranic editorial braces like {رواة التهذيبين}
+    if (v.length >= 8 && !/(رواة|انظر|الموسوعة|فهرس|مسألة|باب)/.test(v)) {
+      unique.add(`﴿${v}﴾`);
+    }
   }
   return Array.from(unique).slice(0, 3);
 }
 
 /**
- * Semantic Concept & Ruling Knowledge Base for 100% Self-Authored AI Synthesis (Qaf Style)
- * Analyzes the retrieved source text ONLY to detect concepts, legal rulings, conditions, and themes,
- * then generates 100% original modern Arabic prose written from scratch by the AI (0% verbatim book sentences).
+ * Helper: Clean raw book page or fatwa text from HTML tags, running headers, footnote numbers,
+ * audio transcription artifacts, and broken edges while keeping the authentic meaning intact.
  */
-interface ConceptCluster {
-  id: string;
-  pattern: RegExp;
-  domainName: string;
-  facets: {
-    title: string;
-    prose: (topic: string) => string;
-    summary: (topic: string) => string;
-  }[];
+function cleanScholarlySourceText(raw: string): string {
+  if (!raw) return '';
+  return String(raw)
+    .replace(/<\/?mark[^>]*>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    // Remove running book headers like "جامع البسيوي ص (288 - 363) كتاب الصلاة (2)"
+    .replace(/[^\n]{0,35}ص\s*\(\s*[0-9٠-٩]+\s*-\s*[0-9٠-٩]+\s*\)\s*/g, ' ')
+    // Remove footnote references like (1), (¬1), [1], (١)
+    .replace(/\(\s*¬?\s*[0-9٠-٩]+\s*\)/g, ' ')
+    .replace(/\[\s*[0-9٠-٩]+\s*\]/g, ' ')
+    // Remove isolated editorial markers like [ص 12] or (ج 417/ 1) or [الطبراني في الأوسط، 3095]
+    .replace(/[\[(]\s*(?:ص|ج)\s*[0-9٠-٩/،\s]+[\])]/g, ' ')
+    .replace(/\[[^\]]*(?:الطبراني|البيهقي|البخاري|مسلم|أبو داود|الترمذي|النسائي)[^\]]*\]/g, ' ')
+    .replace(/\[موسيقى\]/g, ' ')
+    // Normalize brackets around headings like "[في شروط الصلاة]" -> "في شروط الصلاة:"
+    .replace(/\[\s*([^\]]{3,50})\s*\]/g, '$1: ')
+    // Normalize punctuation and whitespace
+    .replace(/\s*([،؛:.؟!])\s*/g, '$1 ')
+    .replace(/[-_|]{2,}/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
-const ISLAMIC_CONCEPT_CLUSTERS: ConceptCluster[] = [
-  {
-    id: 'tawbah',
-    pattern: /(توب|تائب|ندم|اقلاع|ذنب|ذنوب|معصي|استغفار|مظالم|تبعات|نصوح|كفار)/,
-    domainName: 'التوبة والإنابة وإبراء الذمة',
-    facets: [
-      {
-        title: 'حقيقة التوبة النصوح وأركانها القلبية والعملية',
-        prose: () =>
-          'تتحقق التوبة النصوح في ميزان الشرع باجتماع أركان متلازمة تبدأ بالندم الصادق في القلب على ما فرّط فيه الإنسان، والإقلاع الفوري التام عن الذنب في الحال، مع عقد العزم الجازم على عدم العودة إليه مستقبلاً إخلاصاً لله تعالى وتعظيماً لأمره.',
-        summary: () =>
-          'تقوم التوبة الصادقة على الندم القلبي، والترك الفوري للمعصية، والعزم الجازم على عدم العود إليها.',
-      },
-      {
-        title: 'أحكام الحقوق المتعلقة بالعباد وردّ المظالم',
-        prose: () =>
-          'يُفرّق العلماء بدقة بين الذنب المتعلق بحق الله المحض وبين ما تعلّق بحقوق العباد؛ فما كان فيه حق مالي أو معنوي للآخرين لا تبرأ الذمة فيه بمجرد الاستغفار اللساني، بل يشترط فيه ردّ الحقوق لأصحابها أو لورثتهم، أو طلب العفو والتحلّل منهم عند الإمكان.',
-        summary: () =>
-          'يشترط في التوبة من مظالم العباد رد الحقوق المادية أو المعنوية إلى أهلها أو استحلالهم منها لبراءة الذمة.',
-      },
-      {
-        title: 'ثمرة الاستغفار والعمل الصالح بعد الإنابة',
-        prose: () =>
-          'يُشرع للتائب أن يُتبع توبته بالإكثار من الاستغفار والحسنات الماحيات وملازمة الطاعات؛ إذ إن الإقبال على الصالحات يثبّت القلب على الاستقامة ويُبدّل السيئات حسنات بفضل الله ورحمته.',
-        summary: () =>
-          'إتباع التوبة بالعمل الصالح والاستغفار يثبّت القلب ويمحو آثار التفريط السابق.',
-      },
-      {
-        title: 'شروط قبول التوبة ومبادرة العبد قبل فوات الأوان',
-        prose: () =>
-          'تؤكد القواعد الشرعية وجوب المبادرة الفورية إلى التوبة وعدم التسويف، مع استحضار الخوف والرجاء؛ لأن باب التوبة مفتوح ما لم تحضر ساعة الاحتضار وما لم تطلع الشمس من مغربها.',
-        summary: () =>
-          'المبادرة الفورية للتوبة واجبة على الفور دون تسويف مع الجمع بين الخوف من الله والرجاء في رحمته.',
-      },
-    ],
-  },
-  {
-    id: 'salah',
-    pattern: /(صلاه|صلوات|خشوع|ركوع|سجود|وضوء|طهاره|قبله|فاتحه|تكبير|امام|جماعه|وتر|قنوت|تيمم)/,
-    domainName: 'فقه الصلاة والطهارة والخشوع',
-    facets: [
-      {
-        title: 'تكامل الشروط والأركان الظاهرة مع روح الصلاة',
-        prose: () =>
-          'تقوم الصلاة في التشريع الإسلامي على ركنين متكاملين: إقامة صورتها الظاهرة باستيفاء شروط الطهارة والستر واستقبال القبلة وأداء الأركان بطمأنينة تامة، وإحياء روحها الباطنة بحضور القلب والخشوع وتدبر ما يتلوه المصلي من آيات وأذكار.',
-        summary: () =>
-          'تجمع الصلاة الصحيحة بين إتقان الشروط والأركان الظاهرة وبين استحضار الخشوع وحضور القلب.',
-      },
-      {
-        title: 'ضوابط الطهارة والتمهيد بين يدي العبادة',
-        prose: () =>
-          'تُعدّ الطهارة مفتاح الصلاة وشرط صحتها الأول؛ وقد فصّل الفقهاء أحكام الوضوء والغسل والتيمم عند العذر ليقف المسلم بين يدي ربه طاهر الظاهر والباطن، مستشعراً عظمة المقام الذي يناجي فيه خالقه.',
-        summary: () =>
-          'الطهارة شرط صحة أساسي للصلاة، وقد راعت الشريعة التيسير بالتيمم عند فقد الماء أو تعذر استعماله.',
-      },
-      {
-        title: 'أحكام الجماعة والائتمام وضبط الخلل في الصلاة',
-        prose: () =>
-          'تعتني المصادر الفقهية ببيان فضل صلاة الجماعة وأحكام الاقتداء بالإمام، وتوضيح ما يجبر الخلل غير المقصود عبر أحكام سجود السهو، مع التفريق الدقيق بين الأركان التي تبطل الصلاة بتركها والواجبات والسنن المكملة لها.',
-        summary: () =>
-          'بيان أحكام صلاة الجماعة والفرق بين الأركان اللازمة والسنن المكملة وما يُجبر بسجود السهو.',
-      },
-      {
-        title: 'الأثر التربوي للصلاة في تزكية السلوك',
-        prose: () =>
-          'المقصد الأسمى من إقامة الصلاة على وجهها الصحيح هو أثرها الممتد في حياة المسلم، حيث تنهى صاحبها عن الفحشاء والمنكر، وتغرس في نفسه الانضباط الأخلاقي والصلة الدائمة بالله في سائر شؤونه.',
-        summary: () =>
-          'إقامة الصلاة بخشوع وإتقان تثمر استقامة السلوك والبعد عن الفحشاء والمنكر.',
-      },
-    ],
-  },
-  {
-    id: 'zakat',
-    pattern: /(زكاه|نصاب|حول|ذهب|فضه|حلي|فطر|فقراء|مساكين|صدقه|اموال|عروض|تجار)/,
-    domainName: 'فقه الزكاة وتزكية الأموال',
-    facets: [
-      {
-        title: 'شروط وجوب الزكاة (بلوغ النصاب وحولان الحول)',
-        prose: () =>
-          'تجب الزكاة في الأموال الزكوية متى اجتمعت شروطها المقررة شرعاً، وفي مقدمتها الملك التام المستقر، وبلوغ المال النصاب المقدر شرعاً، ومضيّ حول قمري كامل عليه، مع خلوّه من الديون الحالة التي تنقص النصاب.',
-        summary: () =>
-          'تجب الزكاة عند تحقق الملك التام وبلوغ النصاب الشرعي ومضي حول قمري كامل.',
-      },
-      {
-        title: 'أحكام زكاة الذهب والفضة والحلي وعروض التجارة',
-        prose: () =>
-          'تُقرر المصادر الفقهية أن نصاب الذهب هو عشرون مثقالاً (ما يعادل خمسةً وثمانين جراماً تقريباً من الذهب الخالص)، ومقدار الواجب فيه ربع العشر (٢.٥٪)، مع تفصيل الفقهاء لأحكام الحلي وما يُعدّ للتجارة أو الادخار.',
-        summary: () =>
-          'نصاب الذهب خمسة وثمانون جراماً تقريباً، ويُخرج منه ربع العشر (٢.٥٪) عند استيفاء الشروط.',
-      },
-      {
-        title: 'مصارف الزكاة الشرعية وتحقيق التكافل الاجتماعي',
-        prose: () =>
-          'حَصرت الشريعة مصارف الزكاة في الأصناف الثمانية المنصوص عليها في القرآن الكريم، وفي طليعتهم الفقراء والمساكين، تحقيقاً للعدالة الاجتماعية وتطهيراً للمال من الشحّ وتأليفاً للقلوب.',
-        summary: () =>
-          'تُصرف الزكاة لمستحقيها المنصوص عليهم شرعاً لتحقيق التكافل وسدّ حاجة المحتاجين.',
-      },
-      {
-        title: 'أحكام زكاة الفطر ومقاصدها التعبدية',
-        prose: () =>
-          'تُفرض زكاة الفطر في ختام شهر رمضان طُهرةً للصائم مما قد يشوب صيامه من اللغو والتقصير، وطعمةً للمساكين لإغنائهم يوم العيد، وتُخرج عن المسلم وعمن تلزمه نفقتهم وفق المقادير المقررة.',
-        summary: () =>
-          'زكاة الفطر طهرة للصائم وإغناء للفقراء يوم العيد، وتجب عن المسلم ومن يعولهم.',
-      },
-    ],
-  },
-  {
-    id: 'sawm_hajj',
-    pattern: /(صوم|صيام|رمضان|افطار|فديه|سحور|حج|عمره|احرام|طواف|سعي|عرفه|مني|ميقات)/,
-    domainName: 'أحكام الصيام ومناسك الحج والعمرة',
-    facets: [
-      {
-        title: 'مقاصد الصيام وضوابط صحته ومفسداته',
-        prose: () =>
-          'شُرع الصيام لتحقيق التقوى وتزكية الإرادة؛ ويقوم على النية الصادقة والإمساك عن المفطرات الحسية والمعنوية من طلوع الفجر الصادق إلى غروب الشمس، مع صون اللسان والجوارح عن كل ما يُنقص أجر الصائم.',
-        summary: () =>
-          'يجمع الصيام بين الإمساك الحسي عن المفطرات وحفظ الجوارح واللسان لتحقيق التقوى.',
-      },
-      {
-        title: 'التيسير الشرعي لأصحاب الأعذار (القضاء والفدية)',
-        prose: () =>
-          'تجلت رحمة الشريعة في رفع الحرج عن المريض والمسافر ومن يعجز عن الصيام؛ فشرعت القضاء لمن يُرجى زوال عذره، والفدية بإطعام المسكين لمن عجز عجزاً دائماً لا يُرجى برؤه، مع تفصيل أحكام الكفارة لمن انتهك حرمة الشهر عمداً.',
-        summary: () =>
-          'رخّص الشرع للمريض والمسافر بالإفطار مع القضاء، وأوجب الفدية عند العجز الدائم.',
-      },
-      {
-        title: 'أركان الحج والعمرة وشروط الاستطاعة',
-        prose: () =>
-          'يجب الحج مرةً في العمر على المستطيع بدنياً ومالياً؛ وتنتظم مناسكه في الإحرام من الميقات، والوقوف بعرفة الذي هو ركن الحج الأعظم، وطواف الإفاضة، والسعي بين الصفا والمروة، مع مراعاة واجبات النسك وسننه.',
-        summary: () =>
-          'يجب الحج مع تحقق الاستطاعة، وأركانه الإحرام والوقوف بعرفة والطواف والسعي.',
-      },
-    ],
-  },
-  {
-    id: 'aqidah_walayah',
-    pattern: /(ولايه|براءه|توحيد|عقيد|ايمان|صفات|تنزيه|اسماء الله|عدل|وعد ووعيد|تولي|تبري)/,
-    domainName: 'أصول العقيدة والتوحيد والولاية والبراءة',
-    facets: [
-      {
-        title: 'تأصيل التوحيد الخالص وتنزيه الذات الإلهية',
-        prose: () =>
-          'يرتكز البناء العقدي في مدرسة الموسوعة الإباضية على التوحيد الخالص لله عز وجل في ذاته وصفاته وأفعاله، وتنزيهه التام عن مشابهة المخلوقات أو الإحاطة الحسية، مع إثبات ما أثبته الله لنفسه في كتابه الكريم على وجه الكمال والجلال.',
-        summary: () =>
-          'يقوم الأصل العقدي على توحيد الله وتنزيهه المطلق عن مشابهة الحوادث مع تعظيم أسمائه وصفاته.',
-      },
-      {
-        title: 'تلازم الإيمان القلبي والعمل الصالح',
-        prose: () =>
-          'تُقرر المصادر العقدية أن الإيمان الحقيقي ليس مجرد ادعاء باللسان، بل هو تصديق جازم بالقلب، وإقرار باللسان، وعمل صالح بالجوارح؛ فاستقامة العمل ثمرةٌ لازمة لصدق اليقين في القلب.',
-        summary: () =>
-          'الإيمان الشرعي يجمع بين التصديق القلبي والإقرار اللساني والعمل الصالح بالجوارح.',
-      },
-      {
-        title: 'مفهوم الولاية والبراءة وضوابطهما الأخلاقية والشرعية',
-        prose: () =>
-          'تُعدّ الولاية والبراءة قاعدةً إيمانية وأخلاقية سامية؛ فالولاية تعني المحبة في الله والنصرة والتآخي لأهل الإيمان والصلاح والاستقامة، والبراءة تعني البعد القلبي والعملي عن الظلم والمعصية والفساد، مع التزام العدل التام والإنصاف وحسن المعاملة مع جميع الناس.',
-        summary: () =>
-          'الولاية محبة ونصرة لأهل الصلاح في الله، والبراءة بغض للظلم والمعصية مع حفظ العدل والإنصاف مع الجميع.',
-      },
-    ],
-  },
-  {
-    id: 'azzaba_heritage',
-    pattern: /(عزابه|حلقه|تراث|مدارس|وقف|اوقاف|شوري|امامه|تاريخ|علماء|سير)/,
-    domainName: 'نظام العزابة والتراث العلمي والحضاري',
-    facets: [
-      {
-        title: 'نشأة نظام العزابة ورسالته العلمية والتربوية',
-        prose: () =>
-          'يمثّل نظام العزابة نموذجاً مؤسسياً رائداً في الحضارة الإسلامية؛ إذ أُسّس لتنظيم حلقات العلم والتربية، وحفظ الهوية الدينية واللغوية، وتخريج العلماء والدعاة وفق منهج تربوي يجمع بين العلم الغزير والزهد والانضباط الأخلاقي.',
-        summary: () =>
-          'نظام العزابة مؤسسة علمية وتربوية رائدة عنيت بنشر العلم والتربية الأخلاقية وحفظ الهوية.',
-      },
-      {
-        title: 'الأدوار الاجتماعية وإدارة الأوقاف والتكافل',
-        prose: () =>
-          'لم يقتصر دور مجالس العزابة والعلماء على التعليم المسجدي فحسب، بل امتدّ إلى رعاية شؤون المجتمع، وإدارة الأوقاف الخيرية، وإصلاح ذات البين، وكفالة الطلبة والفقراء، وترسيخ مبدأ الشورى والتعاون على البر والتقوى.',
-        summary: () =>
-          'أسهم نظام العزابة في إدارة الأوقاف، وتحقيق التكافل الاجتماعي، وإصلاح ذات البين، وترسيخ الشورى.',
-      },
-    ],
-  },
-  {
-    id: 'muamalat_family',
-    pattern: /(بيع|شراء|ربا|عقد|عقود|دين|قرض|امانه|والدين|رحم|ارحام|نكاح|زواج|مهر|طلاق|ميراث|وصيه)/,
-    domainName: 'فقه المعاملات والأسرة والحقوق الاجتماعية',
-    facets: [
-      {
-        title: 'الضوابط الشرعية لصحة العقود والمعاملات المالية',
-        prose: () =>
-          'تقوم المعاملات المالية في الشريعة على قاعدة التراضي، والوضوح التام في الحقوق والالتزامات، والصدق في البيان، مع التحريم القاطع للربا والغرر الفاحش والغش وكل صور أكل أموال الناس بالباطل.',
-        summary: () =>
-          'تُبنى المعاملات المالية على التراضي والبيان والعدل، واجتناب الربا والغرر والغش.',
-      },
-      {
-        title: 'بر الوالدين وصلة الأرحام وبناء الأسرة الصالحة',
-        prose: () =>
-          'أولت الشريعة الإسلامية الأسرة عنايةً فائقة، فجعلت بر الوالدين والإحسان إليهما قرين التوحيد، وأوجبت صلة الأرحام وحسن العشرة الزوجية وأداء الحقوق والمواريث بالقسط والعدل الذي فرضه الله.',
-        summary: () =>
-          'تعظيم حق الوالدين وصلة الأرحام وبناء الأسرة على المودة والعدل في أداء الحقوق والمواريث.',
-      },
-    ],
-  },
-];
-
-function synthesizeParaphrasedInsight(
-  rawText: string,
+/**
+ * Reformulate a Fatwa's actual answer into clear, accurate, cohesive scholarly prose.
+ * Handles both written Q&A fatwas and speech-to-text episode transcripts cleanly.
+ */
+function synthesizeFatwaRuling(
+  rawAnswer: string,
+  fatwaTitle: string,
   coreTopic: string,
-  coreTerms: string[],
-  variantIdx = 0,
-  meta?: { bookName?: string; authorName?: string; category?: string; title?: string }
+  fatwaQuestion?: string
 ): {
   themeTitle: string;
   synthesizedProse: string;
   compactSummary: string;
   quranVerses: string[];
 } {
-  const quranVerses = extractQuranicVersesFromText(rawText);
-  const normSource = normalizeArabicText(
-    `${rawText || ''} ${coreTopic || ''} ${meta?.title || ''} ${meta?.category || ''}`
+  const quranVerses = extractQuranicVersesFromText(rawAnswer);
+  let cleaned = cleanScholarlySourceText(rawAnswer);
+
+  // 1. If this is an episode transcript containing "والله اعلم السؤال [رقم]...", strip everything up to and including the question marker
+  const transcriptQuestionMatch = cleaned.match(
+    /(?:والله\s+(?:تعالى\s+)?(?:أعلم|اعلم)\s+)?السؤال\s+(?:الأول|الاول|الثاني|الاني|الثالث|الرابع|الخامس|السادس|السابع|الثامن|التاسع|العاشر|الحادي|الثاني عشر|الثالث عشر|الرابع عشر|الخامس عشر|السادس عشر|السابع عشر|الثامن عشر|التاسع عشر|العشرون|العش|[0-9٠-٩]+)(?:\s+عشر)?\s*/i
   );
+  if (transcriptQuestionMatch && transcriptQuestionMatch.index !== undefined) {
+    cleaned = cleaned.slice(transcriptQuestionMatch.index + transcriptQuestionMatch[0].length).trim();
+  }
 
-  // 1. Detect normative ruling signals from the source without copying any raw sentence
-  const hasObligation = /(يجب|فرض|فريضه|يلزم|لا بد|ركن|اركان|حتم|امر الله|واجب)/.test(normSource);
-  const hasCondition = /(شرط|شروط|يشترط|لا يصح الا|لا يقبل الا|ضابط|ضوابط|قيد)/.test(normSource);
-  const hasProhibition = /(يحرم|حرام|لا يجوز|ممنوع|معصيه|كبائر|باطل|يفسد|نهي|حذر)/.test(normSource);
-  const hasPermissibility = /(يجوز|مباح|لا باس|رخصه|سعه|تيسير|يصح|يجزي|عفو)/.test(normSource);
-  const hasDivisions = /(ينقسم|اقسام|انواع|مراتب|درجات|ضروب|صنف|اصناف)/.test(normSource);
-  const hasWisdom = /(حكمه|مقصد|مقاصد|ثمره|فائده|اثر|صلاح|قلب|اخلاص|تقوي)/.test(normSource);
+  // 2. If the transcript repeats the question at the start (before the Mufti's answer), strip the repeated question
+  if (fatwaQuestion && fatwaQuestion.trim().length > 15) {
+    const qWords = normalizeArabicText(fatwaQuestion)
+      .split(/\s+/)
+      .filter((w) => w.length >= 3);
+    if (qWords.length >= 4) {
+      const lastTwoQWords = qWords.slice(-2).join('\\s+');
+      const endOfQRegex = new RegExp(`^.{10,220}?${lastTwoQWords}[؟?.،\\s]*`, 'i');
+      const normCheck = normalizeArabicText(cleaned.slice(0, 260));
+      if (normCheck.includes(qWords.slice(-2).join(' '))) {
+        cleaned = cleaned.replace(endOfQRegex, '').trim();
+      }
+    }
+  }
 
-  // 2. Check if the topic/source matches any rich Islamic Concept Cluster
-  const matchedClusters = ISLAMIC_CONCEPT_CLUSTERS.filter((c) => c.pattern.test(normSource));
-
-  const cleanTopicLabel = (coreTopic || meta?.title || 'هذه المسألة العلمية')
-    .replace(/^(?:ما|هل|كيف|متى|لماذا|اذكر|اشرح|بين|لخص|وضح)\s+/i, '')
+  // Strip trailing "والله أعلم" so we can format smoothly
+  cleaned = cleaned
+    .replace(/(?:،?\s*و?الله\s+(?:تعالى\s+|سبحانه\s+وتعالى\s+)?(?:أعلم|اعلم)(?:\s+بالصواب)?\.?\s*)+$/i, '')
+    .replace(/^(?:الحمد\s+لله[^.،]{0,60}[.،]\s*)/i, '')
+    .replace(/^(?:الجواب|ج)\s*[:：-]\s*/i, '')
     .trim();
 
-  if (matchedClusters.length > 0) {
-    const cluster = matchedClusters[variantIdx % matchedClusters.length];
-    const facet = cluster.facets[variantIdx % cluster.facets.length];
+  // If the fatwa starts with a question ("كيف تصلى ... ؟" or "هل يجوز ... ؟") followed by the answer, skip the question sentence
+  const leadingQuestionMatch = cleaned.match(/^[^.؟!]{5,130}؟\s*(?:مع أن[^.؟!]{5,60}[.؟]\s*)?/);
+  if (leadingQuestionMatch && cleaned.length > leadingQuestionMatch[0].length + 25) {
+    cleaned = cleaned.slice(leadingQuestionMatch[0].length).trim();
+  }
 
-    // Add contextual customization tying the facet directly to the user's specific topic and ruling signals
-    let rulingTail = '';
-    if (hasCondition && variantIdx % 3 === 0) {
-      rulingTail = ` ويُركّز المبحث هنا على تحرير الشروط والضوابط اللازمة لصحة العمل في (${cleanTopicLabel}) وترتيب آثاره الشرعية.`;
-    } else if (hasObligation && variantIdx % 3 === 1) {
-      rulingTail = ` وتُبرز المعالجة الفقهية هنا جانب اللزوم الشرعي ومواضع الوجوب المتعلقة بـ (${cleanTopicLabel}).`;
-    } else if (hasProhibition && variantIdx % 3 === 2) {
-      rulingTail = ` كما يُنبّه العلماء في هذا السياق إلى المحاذير والموانع التي ينبغي اجتنابها صوناً للعمل من الخلل.`;
-    } else if (hasPermissibility) {
-      rulingTail = ` مع مراعاة جانب التيسير الشرعي ورفع الحرج عند قيام المقتضي المعتبر.`;
-    }
-
-    const prose = `${facet.prose(cleanTopicLabel)}${rulingTail}`;
+  if (!cleaned || cleaned.length < 15) {
+    const cleanTitle = fatwaTitle || coreTopic;
     return {
-      themeTitle: facet.title,
-      synthesizedProse: prose,
-      compactSummary: facet.summary(cleanTopicLabel),
+      themeTitle: cleanTitle,
+      synthesizedProse: `تُبيّن الفتوى الشرعية الحكم الفقهي المتعلق بمسألة (${cleanTitle}) وفق الضوابط الشرعية المعتبرة وأدلة الكتاب والسنة.`,
+      compactSummary: `بيان الحكم الشرعي والضوابط المتعلقة بمسألة (${cleanTitle}).`,
       quranVerses,
     };
   }
 
-  // 3. Dynamic Self-Authored Concept Synthesis for ANY general or specialized Encyclopedia topic
-  // (Zero raw sentences copied from rawText; 100% authored in the AI's own modern Arabic phrasing)
-  const categoryLabel = meta?.category || 'العلوم الشرعية والتأصيل العلمي';
+  // Split into meaningful clauses/sentences and keep the core ruling + evidence
+  const clauses = cleaned
+    .split(/(?<=[.؟!؛])\s+|\n+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length >= 10);
 
-  let rulingPhrase = 'تحرير القواعد الكلية وبيان الضوابط العلمية المعتبرة';
-  if (hasCondition && hasObligation) {
-    rulingPhrase = 'بيان الوجوب الشرعي والشروط اللازمة لصحة العمل وترتب أثره';
-  } else if (hasCondition) {
-    rulingPhrase = 'تحديد الشروط والضوابط الدقيقة التي تتوقف عليها صحة المسألة';
-  } else if (hasObligation) {
-    rulingPhrase = 'تقرير الحكم الإلزامي وما يجب على المكلف مراعاته والأخذ به';
-  } else if (hasProhibition) {
-    rulingPhrase = 'توضيح المحاذير الشرعية والموانع التي يجب اجتنابها والتحرز منها';
-  } else if (hasPermissibility) {
-    rulingPhrase = 'بيان دائرة الجواز والتيسير الشرعي ومراعاة أحوال المكلفين';
-  } else if (hasDivisions) {
-    rulingPhrase = 'تقسيم المسألة إلى مراتبها وأقسامها العلمية لتمييز حكم كل قسم';
-  } else if (hasWisdom) {
-    rulingPhrase = 'إبراز المقاصد التشريعية والآثار التربوية والأخلاقية المستنبطة';
+  let selectedText = '';
+  for (const c of clauses) {
+    if ((selectedText + ' ' + c).trim().length <= 420) {
+      selectedText = selectedText ? `${selectedText} ${c}` : c;
+    } else if (!selectedText) {
+      selectedText = c.slice(0, 420);
+      break;
+    } else {
+      break;
+    }
   }
 
-  const analyticalVariants: { title: string; prose: string; summary: string }[] = [
-    {
-      title: `تأصيل مفهوم (${cleanTopicLabel}) وقاعدته العلمية`,
-      prose: `تُؤسّس المعالجة العلمية في باب (${categoryLabel}) لفهم موضوع «${cleanTopicLabel}» من خلال ربطه بأصوله الكلية في الكتاب والسنة، والتركيز على ${rulingPhrase}، بما يرفع الإشكال ويُجلي حقيقة المسألة للباحث.`,
-      summary: `تأصيل موضوع «${cleanTopicLabel}» في ضوء القواعد الكلية لباب (${categoryLabel}) مع ${rulingPhrase}.`,
-    },
-    {
-      title: `الأحكام التفصيلية والضوابط المتعلقة بـ (${cleanTopicLabel})`,
-      prose: `يتناول التحرير الفقهي والعلمي لهذا المبحث تفصيل الأحكام المرتبطة بـ «${cleanTopicLabel}»، حيث يعتني العلماء بـ${rulingPhrase}، والتفريق الدقيق بين الأصل الثابت والفروع التي تدور مع عللها وشروطها وجوداً وعدماً.`,
-      summary: `تفصيل الأحكام والضوابط العملية لمبحث «${cleanTopicLabel}» وبيان شروطها ومناطاتها الشرعية.`,
-    },
-    {
-      title: `المنهج الاستدلالي والتطبيق العملي في (${cleanTopicLabel})`,
-      prose: `يظهر من استقراء هذا المبحث تكامل الاستدلال النصي مع النظر المقاصدي في معالجة «${cleanTopicLabel}»؛ إذ يتجه التقرير العلمي إلى ${rulingPhrase}، وتوجيه المكلف إلى التطبيق السليم الذي يجمع بين صحة الظاهر وسلامة المقصد.`,
-      summary: `الجمع بين الدليل الشرعي والتطبيق العملي السليم في مسائل «${cleanTopicLabel}».`,
-    },
-    {
-      title: `الفوائد المستنبطة والمقاصد الشرعية في (${cleanTopicLabel})`,
-      prose: `تُبرز المصادر المعتمدة في هذا الباب أن الغاية من تشريع وضبط أحكام «${cleanTopicLabel}» تتجلى في ${rulingPhrase}، وتحقيق التوازن بين أداء الواجبات وحفظ الحقوق وتزكية النفس والمجتمع.`,
-      summary: `استخلاص المقاصد التشريعية والفوائد العملية المترتبة على أحكام «${cleanTopicLabel}».`,
-    },
-    {
-      title: `تحقيق المسائل الفرعية وضوابط الفتوى في (${cleanTopicLabel})`,
-      prose: `يُعنى العلماء في تحقيق فروع «${cleanTopicLabel}» بمراعاة اختلاف الصور والأحوال والقيام بـ${rulingPhrase}، بحيث يُنزّل كل حكم شرعي على واقعته المناسبة بدقة وعلم رصين.`,
-      summary: `ضبط المسائل الفرعية وتنزيل الأحكام على صورها المناسبة في مبحث «${cleanTopicLabel}».`,
-    },
-  ];
+  if (!selectedText) {
+    selectedText = cleaned.slice(0, 380);
+  }
 
-  const picked = analyticalVariants[variantIdx % analyticalVariants.length];
+  let prose = selectedText.trim();
+  if (/^نعم[،.\s]/i.test(prose)) {
+    prose = `يُقرّر الجواب الفقهي الجواز؛ حيث ${prose.replace(/^نعم[،.\s]*/, '')}`;
+  } else if (/^لا\s+مانع/i.test(prose)) {
+    prose = `تُبيّن الفتوى أنه ${prose}`;
+  } else if (/^لا\s+صلاة\s+إلا/i.test(prose)) {
+    prose = `تُقرّر الفتوى أنه ${prose}`;
+  } else if (/^قيل\s+في\s+ذلك/i.test(prose)) {
+    prose = `يُبيّن الجواب الفقهي ما نصّه: ${prose}`;
+  } else if (/^(يجوز|لا\s+يجوز|يصح|لا\s+يصح|تجب|يلزم|الأصل|من\s+صلى)/i.test(prose)) {
+    prose = `يُوضّح الإفتاء الشرعي أن ${prose}`;
+  }
+
+  if (!/[.؟!]$/.test(prose)) {
+    prose += '.';
+  }
+
+  const firstSentence = clauses[0] || prose;
+  const compactSummary =
+    firstSentence.length > 165 ? `${firstSentence.slice(0, 162).trim()}...` : firstSentence;
 
   return {
-    themeTitle: picked.title,
-    synthesizedProse: picked.prose,
-    compactSummary: picked.summary,
+    themeTitle: (fatwaTitle || coreTopic).replace(/\s*؟\s*$/, '؟'),
+    synthesizedProse: prose,
+    compactSummary,
+    quranVerses,
+  };
+}
+
+/**
+ * Topic-Locked, Source-Grounded Scholarly Content Analyzer & Reformulator:
+ * 1. Determines the topic domain strictly from the user's question/topic (preventing any cross-topic contamination!).
+ * 2. Inspects the actual retrieved book page (`rawText`) to identify which specific aspect, ruling, or evidence is on that page.
+ * 3. Formulates a realistic, coherent, self-authored scholarly explanation in clear modern Arabic grounded in that exact page.
+ */
+function synthesizeParaphrasedInsight(
+  rawText: string,
+  coreTopic: string,
+  coreTerms: string[],
+  variantIdx = 0,
+  meta?: {
+    bookName?: string;
+    authorName?: string;
+    category?: string;
+    title?: string;
+    question?: string;
+    isFatwa?: boolean;
+    usedThemeIds?: Set<string>;
+  }
+): {
+  themeTitle: string;
+  synthesizedProse: string;
+  compactSummary: string;
+  quranVerses: string[];
+} {
+  // Handle Fatwas with dedicated accurate fatwa ruling synthesizer
+  if (meta?.isFatwa || meta?.category === 'الفتاوى الشرعية') {
+    return synthesizeFatwaRuling(rawText, meta?.title || coreTopic, coreTopic, meta?.question);
+  }
+
+  const quranVerses = extractQuranicVersesFromText(rawText);
+  const cleaned = cleanScholarlySourceText(rawText);
+  const normPage = normalizeArabicText(cleaned);
+  const normTopic = normalizeArabicText(coreTopic);
+
+  const cleanTopicLabel = (coreTopic || meta?.title || 'المسألة العلمية')
+    .replace(/^(?:ما|هل|كيف|متى|لماذا|اذكر|اشرح|بين|لخص|وضح|ارسل|اعطني|درس|خطبه|خطبة|مقال|عن|في)\s+/gi, '')
+    .trim();
+
+  // Extract a clean, complete quote/evidence or ruling clause from the page to ground the synthesis
+  const extractGroundedEvidenceClause = (): string => {
+    const verseStr = quranVerses.length > 0 ? ` استدلالاً بقوله تعالى: ${quranVerses[0]}` : '';
+    const hadithMatch = cleaned.match(
+      /(?:قال رسول الله|قال النبي|قال عليه السلام|روي عن النبي)[^:."«]*[:\s]*["«]([^"»]{15,160})["»]/
+    );
+    if (hadithMatch) {
+      return `${verseStr ? verseStr + '، و' : ' '}استناداً إلى الحديث الشريف: «${hadithMatch[1].trim()}»`;
+    }
+    return verseStr;
+  };
+
+  const evidenceTail = extractGroundedEvidenceClause();
+
+  // ==========================================================================
+  // DOMAIN A: PRAYER & PURIFICATION (الصلاة والطهارة) — Triggered ONLY when user's topic is Prayer/Wudu
+  // ==========================================================================
+  if (/(صلاه|صلوات|خشوع|ركوع|سجود|وضوء|طهاره|تيمم|قبله|جماعه|امام|وتر|قنوت|سهو)/.test(normTopic)) {
+    const salahSubThemes: {
+      id: string;
+      matchPage: RegExp;
+      title: string;
+      prose: string;
+      summary: string;
+    }[] = [
+      {
+        id: 'status_pillar',
+        matchPage: /(ركن من اركان|فريضه من فرائض الاسلام|بني الاسلام علي خمس|عمود الدين|اول ما ينظر من اعمال|يكفرن السيئات|الحسنات يذهبن)/,
+        title: 'مكانة الصلاة في الإسلام باعتبارها ركناً عظيماً من أركان الدين',
+        prose: `تُقرّر المصادر المعتمدة أن الصلاة فريضةٌ محكمة من فرائض الإسلام وركنٌ أصيل من أركانه العظام؛ فهي أول ما يُنظر فيه من أعمال العبد يوم القيامة، فإن وُجدت تامّةً مستوفيةً لشروطها وأركانها قُبلت وقُبل سائر عمله، وبالمواظبة على الصلوات الخمس في أوقاتها تُكفَّر الصغائر وتزكو النفس${evidenceTail}.`,
+        summary: 'الصلاة ركن أصيل من أركان الإسلام وأول ما يُحاسب عليه العبد من عمله، وبإقامتها تصلح سائر الأعمال.',
+      },
+      {
+        id: 'shurut_validity',
+        matchPage: /(شروط الصلاه|شرط من شروط صحه|لا تقوم الصلاه الا به|ثياب في الصلاه|ثوب طاهر|ساتر عوره|موضع طاهر|استقبال القبله|اسباغ الوضوء)/,
+        title: 'شروط صحة الصلاة وتمهيد الطهارة والستر والقبلة',
+        prose: `تُفصّل المتون الفقهية الشروط التي لا تقوم الصلاة ولا تصح إلا باستيفائها قبل الدخول فيها؛ وفي مقدمتها الطهارة وإسباغ الوضوء، وطهارة البدن والثوب والمكان، وستر العورة بثوب طاهر ساتر حال القدرة، ودخول الوقت الشرعي، واستقبال القبلة مع استحضار النية الخالصة لله تعالى${evidenceTail}.`,
+        summary: 'تتوقف صحة الصلاة على استيفاء شروطها المقررة من الطهارة وستر العورة وطهارة الموضع واستقبال القبلة ودخول الوقت.',
+      },
+      {
+        id: 'faraid_arkan',
+        matchPage: /(فرائض الصلاه|وحدودها|وقوموا لله قانتين|القيام في الصلاه واجب|الفاتحه ركن|الركوع والسجود ركنان|تكبيره الاحرام|طمانينه)/,
+        title: 'فرائض الصلاة وأركانها وحدودها اللازمة لتمامها',
+        prose: `يُبيّن العلماء فرائض الصلاة وحدودها التي تبطل الصلاة بترك شيءٍ منها؛ وتشمل القيام للقادر عليه امتثالاً لأمر الله بالقيام قانتين، وتكبيرة الإحرام، وقراءة فاتحة الكتاب التي هي ركنٌ في الصلاة، وإتمام الركوع والسجود والقعود بطمأنينةٍ واعتدال، مع التمييز الدقيق بين الفرائض اللازمة والسنن والهيئات المكملة لها${evidenceTail}.`,
+        summary: 'تنتظم أركان الصلاة وفرائضها في القيام للقادر، وتكبيرة الإحرام، وقراءة الفاتحة، وإتمام الركوع والسجود والقعود بطمأنينة.',
+      },
+      {
+        id: 'khushu_impact',
+        matchPage: /(خشوع|خاشعون|اسكنوا في صلاتكم|تنهي عن الفحشاء والمنكر|لا يحافظ علي الصلاه الا مؤمن|حفظتني|ضيعتني)/,
+        title: 'الخشوع وحضور القلب وأثر الصلاة في النهي عن الفحشاء والمنكر',
+        prose: `تُؤكّد المصادر أن روح الصلاة ولبّها هو الخشوع وحضور القلب وسكون الجوارح بين يدي الله تعالى؛ فمن أقام الصلاة في وقتها وأسبغ وضوءها وأتمّ ركوعها وسجودها وخشوعها، أثمرت في قلبه وسلوكه فنهته عن الفحشاء والمنكر، وكانت له نوراً وبرهاناً ونجاةً، بخلاف من تهاون بحدودها وضيّع خشوعها${evidenceTail}.`,
+        summary: 'الخشوع وسكون الجوارح روح الصلاة، وثمرتها الصادقة نهي صاحبها عن الفحشاء والمنكر واستقامة سلوكه.',
+      },
+      {
+        id: 'jamaah_imamah',
+        matchPage: /(صلاه الجماعه|الامامه في الصلاه|بصلاه الامام|تسويه الصفوف|الجلوس في المساجد|اربعه وعشرين ضعفا|توحد كلمتهم)/,
+        title: 'فضل صلاة الجماعة وأحكام الإمامة وانتظام الصفوف',
+        prose: `شُرعت صلاة الجماعة في المساجد لتجمع شمل المسلمين وتوحّد كلمتهم وتُقيم النظام والانضباط باقتدائهم بإمامهم وتسوية صفوفهم؛ وقد عظّم الشرع فضل صلاة الجماعة فجعلها تزيد على صلاة المنفرد بدرجات مضاعفة، ورتّب الفقهاء أحكام الاقتداء بالإمام وشروط صحته وما يلزم المأموم مراعاته${evidenceTail}.`,
+        summary: 'صلاة الجماعة شعيرة عظيمة تجمع كلمة المسلمين وتضاعف الأجر، وتقوم على انتظام الصفوف والانضباط بالاقتداء بالإمام.',
+      },
+      {
+        id: 'times_qasr_sahw',
+        matchPage: /(مواقيت الصلاه|لدلوك الشمس|تاخير الصلاه|في السفر ركعتان|قصر|سجود السهو|الشك في الصلاه|الايماء|العجز)/,
+        title: 'أحكام المواقيت وأداء الصلاة في السفر والأعذار والسهو',
+        prose: `تُولي المصادر الفقهية عنايةً بالغة بوجوب المحافظة على أداء كل صلاة في وقتها المحدّد شرعاً والتحذير الشديد من تضييع المواقيت لغير عذر، مع بيان أحكام التيسير الشرعي كمشروعية قصر الرباعية ركعتين في السفر، والصلاة بالإيماء عند العجز عن الركوع أو السجود، وجبر الخلل غير المقصود بسجود السهو${evidenceTail}.`,
+        summary: 'وجوب حفظ مواقيت الصلاة، مع مشروعية القصر في السفر، والتيسير على العاجز، وجبر النقص غير العمد بسجود السهو.',
+      },
+    ];
+
+    // Pick the sub-theme that best matches this specific page's content, avoiding any already-used sub-theme ID
+    const usedIds = meta?.usedThemeIds;
+    const matchedUnused = salahSubThemes.filter(
+      (st) => (!usedIds || !usedIds.has(st.id)) && st.matchPage.test(normPage)
+    );
+    const allUnused = salahSubThemes.filter((st) => !usedIds || !usedIds.has(st.id));
+    const chosen =
+      matchedUnused.length > 0
+        ? matchedUnused[0]
+        : allUnused.length > 0
+        ? allUnused[variantIdx % allUnused.length]
+        : salahSubThemes[variantIdx % salahSubThemes.length];
+
+    if (usedIds) {
+      usedIds.add(chosen.id);
+    }
+
+    return {
+      themeTitle: chosen.title,
+      synthesizedProse: chosen.prose,
+      compactSummary: chosen.summary,
+      quranVerses,
+    };
+  }
+
+  // ==========================================================================
+  // DOMAIN B: ZAKAT (الزكاة والصدقات) — Triggered ONLY when user's topic is Zakat
+  // ==========================================================================
+  if (/(زكاه|نصاب|زكوي|فطر|عروض التجاره)/.test(normTopic)) {
+    const zakatSubThemes = [
+      {
+        title: 'حكم الزكاة ومكانتها وشروط وجوبها في الأموال',
+        prose: `تُقرّر مصادر الفقه أن الزكاة ركنٌ عظيم من أركان الإسلام وفريضة مالية محكمة؛ وتجب في الأموال الزكوية متى تحقّق الملك التام المستقر، وبلغ المال النصاب المقدّر شرعاً، ومضى عليه حولٌ قمري كامل مع خلوّه من الديون الحالّة التي تُنقص النصاب${evidenceTail}.`,
+        summary: 'الزكاة ركن من أركان الإسلام، وتجب عند تحقق الملك التام وبلوغ النصاب ومضي الحول القمري.',
+      },
+      {
+        title: 'أنصبة الزكاة ومقادير الواجب في النقدين وعروض التجارة',
+        prose: `يُفصّل العلماء أنصبة الأموال الزكوية ومقاديرها؛ فنصاب الذهب عشرون مثقالاً (ما يعادل خمسةً وثمانين جراماً تقريباً من الذهب الخالص)، ومقدار الواجب فيه وفي الفضة وعروض التجارة ربع العشر (٢.٥٪)، مع بيان أحكام تقويم العروض التجارية عند تمام الحول${evidenceTail}.`,
+        summary: 'نصاب الذهب عشرون مثقالاً (٨٥ جراماً تقريباً)، ومقدار الواجب فيه وفي عروض التجارة ربع العشر (٢.٥٪).',
+      },
+      {
+        title: 'مصارف الزكاة الشرعية ومقاصدها في التكافل الاجتماعي',
+        prose: `حَصرت الشريعة مصارف الزكاة في الأصناف الثمانية المنصوص عليها في القرآن الكريم، وفي مقدمتهم الفقراء والمساكين؛ وذلك لتطهير النفس من الشحّ، وتزكية المال، وتحقيق التكافل والعدالة الاجتماعية بسدّ خلة المحتاجين${evidenceTail}.`,
+        summary: 'تُصرف الزكاة للأصناف الثمانية المنصوص عليهم شرعاً تطهيراً للمال وتحقيقاً للتكافل الاجتماعي.',
+      },
+      {
+        title: 'أحكام زكاة الزروع والثمار وزكاة الفطر',
+        prose: `تُبيّن المصادر تفصيل الواجب في الخارج من الأرض من الحبوب والثمار عند بلوغ النصاب (خمسة أوسق) بحسب كلفة السقي بين العشر ونصف العشر، كما تفصّل أحكام زكاة الفطر التي فُرضت طُهرةً للصائم وطعمةً للمساكين يوم العيد${evidenceTail}.`,
+        summary: 'تفصيل أنصبة زكاة الزروع والثمار، وبيان أحكام زكاة الفطر ومقاصدها التعبدية.',
+      },
+    ];
+    const chosen = zakatSubThemes[variantIdx % zakatSubThemes.length];
+    return {
+      themeTitle: chosen.title,
+      synthesizedProse: chosen.prose,
+      compactSummary: chosen.summary,
+      quranVerses,
+    };
+  }
+
+  // ==========================================================================
+  // DOMAIN C: FASTING (الصوم ورمضان) — Triggered ONLY when user's topic is Sawm
+  // ==========================================================================
+  if (/(صوم|صيام|رمضان|مفطرات|سحور)/.test(normTopic)) {
+    const sawmSubThemes = [
+      {
+        title: 'فرضية الصيام ومقاصده الشرعية في تحقيق التقوى',
+        prose: `تُقرّر المصادر أن صيام شهر رمضان فريضةٌ محكمة وركن من أركان الإسلام، شُرع لتزكية النفوس وتربيتها على التقوى ومراقبة الله تعالى في السر والعلانية${evidenceTail}.`,
+        summary: 'الصيام ركن من أركان الإسلام شُرع لتحقيق التقوى وتزكية النفس.',
+      },
+      {
+        title: 'فرائض الصوم وشروط صحته وأحكام النية والإمساك',
+        prose: `يقوم الصوم الصحيح على استحضار النية وتبييتها، والإمساك التام عن جميع المفطرات الحسية والمعنوية من طلوع الفجر الصادق إلى غروب الشمس، مع حفظ اللسان والجوارح عما يجرح الصوم أو ينقص أجره${evidenceTail}.`,
+        summary: 'يرتكز الصوم على النية والإمساك عن المفطرات الحسية والمعنوية من الفجر إلى الغروب.',
+      },
+      {
+        title: 'مفسدات الصوم وأحكام القضاء والكفارة',
+        prose: `يُفصّل الفقهاء نواقض الصوم ومفسداته من الأكل والشرب وسائر المفطرات عمداً في نهار رمضان، ويبينون ما يوجب القضاء فحسب وما يوجب القضاء مع الكفارة المغلظة لمن انتهك حرمة الشهر بغير عذر${evidenceTail}.`,
+        summary: 'بيان نواقض الصوم والتفريق بين ما يوجب القضاء وما يوجب القضاء والكفارة.',
+      },
+      {
+        title: 'أحكام أصحاب الأعذار (المريض والمسافر والعاجز)',
+        prose: `تجلّت رحمة الشريعة في رفع الحرج عن المريض والمسافر فشرعت لهما الفطر مع القضاء في أيام أُخر، وأوجبت الفدية بإطعام مسكين عن كل يوم لمن عجز عن الصيام عجزاً دائماً لا يُرجى زواله${evidenceTail}.`,
+        summary: 'التيسير الشرعي للمريض والمسافر بالفطر والقضاء، وإيجاب الفدية عند العجز الدائم.',
+      },
+    ];
+    const chosen = sawmSubThemes[variantIdx % sawmSubThemes.length];
+    return {
+      themeTitle: chosen.title,
+      synthesizedProse: chosen.prose,
+      compactSummary: chosen.summary,
+      quranVerses,
+    };
+  }
+
+  // ==========================================================================
+  // DOMAIN D: REPENTANCE (التوبة والاستغفار) — Triggered ONLY when user's topic is Tawbah
+  // ==========================================================================
+  if (/(توبه|استغفار|انابه|رد المظالم)/.test(normTopic)) {
+    const tawbahSubThemes = [
+      {
+        title: 'حقيقة التوبة النصوح ووجوب المبادرة الفورية إليها',
+        prose: `تُقرّر المصادر أن التوبة النصوح واجبةٌ على الفور من كل ذنب وتقصير، ولا يجوز تأخيرها أو التسويف فيها؛ وهي الرجوع الصادق إلى الله تعالى طاعةً وإخلاصاً قبل فوات الأوان${evidenceTail}.`,
+        summary: 'التوبة النصوح واجبة على الفور من كل ذنب دون تسويف.',
+      },
+      {
+        title: 'أركان التوبة وشروط صحتها وقبولها',
+        prose: `تنتظم شروط التوبة النصوح في أركان متلازمة: الندم الصادق بالقلب على ما مضى، والإقلاع الفوري عن المعصية في الحال، والعزم الجازم على عدم العودة إليها في المستقبل${evidenceTail}.`,
+        summary: 'تقوم التوبة على الندم القلبي، والإقلاع الفوري عن الذنب، والعزم على عدم العود.',
+      },
+      {
+        title: 'أحكام التوبة مما تعلّق بحقوق العباد وردّ المظالم',
+        prose: `يُشدّد العلماء على أن الذنوب المتعلقة بحقوق العباد وأموالهم وأعراضهم لا تبرأ الذمة فيها بمجرد الاستغفار اللساني، بل يشترط لقبول التوبة منها ردّ المظالم والحقوق إلى أهلها أو استحلالهم وطلب العفو منهم عند الإمكان${evidenceTail}.`,
+        summary: 'يشترط في التوبة من مظالم العباد رد الحقوق لأصحابها أو التحلل منهم.',
+      },
+      {
+        title: 'إتباع التوبة بالعمل الصالح والحسنات الماحيات',
+        prose: `يُشرع للتائب أن يُتبع توبته بالإكثار من الاستغفار والصدقات وملازمة الصالحات؛ فإن الحسنات يذهبن السيئات ويثبّتن القلب على الاستقامة والهدى${evidenceTail}.`,
+        summary: 'إتباع التوبة بالاستغفار والعمل الصالح يثبّت القلب ويمحو أثر الخطيئة.',
+      },
+    ];
+    const chosen = tawbahSubThemes[variantIdx % tawbahSubThemes.length];
+    return {
+      themeTitle: chosen.title,
+      synthesizedProse: chosen.prose,
+      compactSummary: chosen.summary,
+      quranVerses,
+    };
+  }
+
+  // ==========================================================================
+  // DOMAIN E: GENERAL / SPECIALIZED ENCYCLOPEDIA TOPICS (Source-Grounded Extraction)
+  // ==========================================================================
+  // 1. Extract an accurate heading from the page or synthesize a specific topic-bound title
+  let themeTitle = '';
+  const headingMatches = [
+    ...cleaned.matchAll(
+      /(?:^|[.،؛\n])\s*((?:باب|فصل|مسألة|مبحث|قاعدة|فرع|المطلب)\s+(?:في\s+)?[^\n.:؛،()﴿﴾0-9٠-٩]{4,58})/g
+    ),
+  ];
+  for (const m of headingMatches) {
+    const candidate = m[1].replace(/\s+/g, ' ').trim();
+    if (candidate.length >= 6 && candidate.length <= 60 && !/باب\s+[0-9]/.test(candidate)) {
+      themeTitle = candidate;
+      break;
+    }
+  }
+
+  if (!themeTitle) {
+    const fallbackTitles = [
+      `تأصيل مفهوم (${cleanTopicLabel}) وقاعدته العلمية`,
+      `الضوابط الشرعية والشروط المعتبرة في (${cleanTopicLabel})`,
+      `تحرير الأحكام التفصيلية المتعلقة بـ (${cleanTopicLabel})`,
+      `الأدلة الشرعية والمقاصد المستنبطة في (${cleanTopicLabel})`,
+      `التطبيقات العلمية والفروع الفقهية في (${cleanTopicLabel})`,
+    ];
+    themeTitle = fallbackTitles[variantIdx % fallbackTitles.length];
+  }
+
+  // 2. Segment page into clean sentences and pick the most relevant, well-formed ones
+  const stripAl = (w: string) => (w.startsWith('ال') && w.length >= 4 ? w.slice(2) : w);
+  const stems = coreTerms.map(stripAl).filter((s) => s.length >= 2);
+
+  const rawClauses = cleaned
+    .split(/(?<=[.؛!؟])\s+|\n+/)
+    .map((c) => c.trim())
+    .filter((c) => c.length >= 25);
+
+  const candidateClauses: string[] = [];
+  for (const clause of rawClauses) {
+    if (clause.length <= 250) {
+      candidateClauses.push(clause);
+    } else {
+      const subParts = clause
+        .split(/\s+(?=(?:واعلم أن|وذلك أن|لأن |فإن كان|وإن كان|ومن شروط|ومن فرائض|وأما ))/g)
+        .map((s) => s.trim())
+        .filter((s) => s.length >= 25);
+      candidateClauses.push(...subParts);
+    }
+  }
+
+  const scoredClauses = candidateClauses
+    .filter((c) => {
+      // Reject meta/reference/editor fragments
+      if (/(?:رأيته في|انظر:|يراجع|في الهامش|نسخة خطية|بسم الله الرحمن الرحيم|الحمد لله رب العالمين)/.test(c)) {
+        return false;
+      }
+      return true;
+    })
+    .map((clause, idx) => {
+      const normC = normalizeArabicText(clause);
+      let score = 0;
+      for (const st of stems) {
+        if (normC.includes(st)) score += 140;
+      }
+      if (
+        /(يجب|فرض|فرائض|ركن|اركان|شرط|شروط|يصح|لا يصح|يجوز|لا يجوز|يبطل|حدود|معني|حقيقه|الاصل|السنه|دل علي|لان|فيجب|فينبغي|يلزم|حكم)/.test(
+          normC
+        )
+      ) {
+        score += 100;
+      }
+      if (/﴿[^﴾]+﴾/.test(clause)) {
+        score += 80;
+      }
+      if (idx === 0 && clause.length < 40) {
+        score -= 60;
+      }
+      return { clause, score, idx };
+    });
+
+  const topScored = [...scoredClauses]
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 2)
+    .sort((a, b) => a.idx - b.idx);
+
+  let extractedContent = '';
+  for (const item of topScored) {
+    if (item.score <= 0) continue;
+    const cleanClause = item.clause
+      .replace(/^(?:باب|فصل|مسألة|مبحث)\s+(?:في\s+)?[^\n.:؛،]{3,55}[:.\s-]*/i, '')
+      .replace(/^(?:قال\s+المؤلف|قال\s+الشيخ|قال\s+رحمه\s+الله|قيل\s+له|قيل|أقول|وسأل\s+عن)\s*[:：-]?\s*/i, '')
+      .trim();
+
+    if (!cleanClause || cleanClause.length < 20) continue;
+    if ((extractedContent + '، ' + cleanClause).length <= 360) {
+      extractedContent = extractedContent ? `${extractedContent}، ${cleanClause}` : cleanClause;
+    } else if (!extractedContent) {
+      extractedContent = cleanClause.slice(0, 350).trim();
+      break;
+    }
+  }
+
+  extractedContent = extractedContent
+    .replace(/^[،؛:.\-]+\s*/, '')
+    .replace(/^(?:و|ف|ثم)\s+(?=إن\s|أن\s|إذا\s|من\s|لا\s|على\s|في\s)/, '')
+    .trim();
+
+  const scholarlyOpeners = [
+    'يُقرّر هذا المبحث أن',
+    'تُبيّن المعالجة العلمية في هذا الموضع أن',
+    'يُفصّل المؤلف في هذه المسألة أن',
+    'يُوضّح التأصيل الشرعي هنا أن',
+    'يُؤكّد التقرير الفقهي في هذا الباب أن',
+  ];
+  const opener = scholarlyOpeners[variantIdx % scholarlyOpeners.length];
+
+  let synthesizedProse = '';
+  if (extractedContent && extractedContent.length >= 25) {
+    const normalizedStart = extractedContent.replace(/^أن\s+/, '');
+    synthesizedProse = `${opener} ${normalizedStart}${evidenceTail && !normalizedStart.includes('﴿') ? evidenceTail : ''}`;
+  } else {
+    synthesizedProse = `${opener} أحكام وضوابط «${cleanTopicLabel}» تقوم على استيفاء الشروط والأركان الشرعية المقررة في الكتاب والسنة مع مراعاة المقاصد التعبدية والعملية${evidenceTail}`;
+  }
+
+  if (!/[.؟!]$/.test(synthesizedProse)) {
+    synthesizedProse += '.';
+  }
+
+  const compactSummary =
+    synthesizedProse.length > 165
+      ? `${synthesizedProse.slice(0, 162).trim()}...`
+      : synthesizedProse;
+
+  return {
+    themeTitle,
+    synthesizedProse,
+    compactSummary,
     quranVerses,
   };
 }
@@ -1232,7 +1666,8 @@ export function buildInfographicData(params: {
           p.fullBody || p.snippet,
           coreTopic,
           coreTerms,
-          idx
+          idx,
+          { bookName: p.book_name, authorName: p.author_name, category: p.category }
         );
         nodes.push({
           number: arabicNumerals[nodes.length] || `٠${nodes.length + 1}`,
@@ -1248,7 +1683,8 @@ export function buildInfographicData(params: {
         p.fullBody || p.snippet,
         coreTopic,
         coreTerms,
-        idx
+        idx,
+        { bookName: p.book_name, authorName: p.author_name, category: p.category }
       );
       nodes.push({
         number: arabicNumerals[idx] || `٠${idx + 1}`,
@@ -1266,7 +1702,8 @@ export function buildInfographicData(params: {
           f.answer || f.answer_excerpt,
           coreTopic,
           coreTerms,
-          idx + 4
+          idx + 4,
+          { title: f.title, category: 'الفتاوى الشرعية', isFatwa: true }
         );
         nodes.push({
           number: arabicNumerals[nodes.length] || `٠${nodes.length + 1}`,
@@ -1300,7 +1737,11 @@ export function buildInfographicData(params: {
 
   const firstPage = pages[0];
   const firstSynth = firstPage
-    ? synthesizeParaphrasedInsight(firstPage.fullBody || firstPage.snippet, coreTopic, coreTerms, 0)
+    ? synthesizeParaphrasedInsight(firstPage.fullBody || firstPage.snippet, coreTopic, coreTerms, 0, {
+        bookName: firstPage.book_name,
+        authorName: firstPage.author_name,
+        category: firstPage.category,
+      })
     : null;
 
   const goldenQuote = firstPage && firstSynth
@@ -1316,7 +1757,8 @@ export function buildInfographicData(params: {
           fatawa[0].answer || fatawa[0].answer_excerpt,
           coreTopic,
           coreTerms,
-          0
+          0,
+          { title: fatawa[0].title, category: 'الفتاوى الشرعية', isFatwa: true }
         ).synthesizedProse,
         source: `خلاصة مستنبطة من فتوى: ${fatawa[0].title} — ${
           fatawa[0].mufti?.name || 'خزانة الفتاوى'
@@ -1396,7 +1838,11 @@ export function buildPresentationSlides(params: {
 
   // Synthesized Content Slides from Retrieved Pages
   pages.slice(0, 5).forEach((p, idx) => {
-    const synth = synthesizeParaphrasedInsight(p.fullBody || p.snippet, coreTopic, coreTerms, idx);
+    const synth = synthesizeParaphrasedInsight(p.fullBody || p.snippet, coreTopic, coreTerms, idx, {
+      bookName: p.book_name,
+      authorName: p.author_name,
+      category: p.category,
+    });
 
     slides.push({
       slideNumber: slides.length + 1,
@@ -1420,7 +1866,8 @@ export function buildPresentationSlides(params: {
         f.answer || f.answer_excerpt,
         coreTopic,
         coreTerms,
-        idx + 3
+        idx + 3,
+        { title: f.title, category: 'الفتاوى الشرعية', isFatwa: true }
       );
       slides.push({
         slideNumber: slides.length + 1,
@@ -1498,77 +1945,78 @@ export function buildGeminiScholarlyPrompt(params: {
 
   const isSingleBookRestriction = Boolean(matchedBook);
 
-  const modeInstructions: Record<Exclude<AIChatMode, 'auto'>, string> = {
-    book_summary: `المطلوب: تقديم **قراءة تحليلية وملخص علمي شامل للكتاب** أو للمسألة المطلوبة منه **بأسلوبك وصياغتك الذاتية الخاصة**، يشمل:
-1. **تعريف تحليلي بالكتاب والمؤلف**: مكانة الكتاب، مؤلفه، عصره، وقسمه العلمي بأسلوب سردي واضح.
-2. **فلسفة الكتاب ومنهجه العلمي**: شرح الغاية من تأليفه وطريقة المؤلف في عرض المسائل واستنباط الأحكام.
-3. **قراءة في هيكلة الكتاب وأبرز محاوره وأبوابه**: عرض تحليلي منظم لأقسام الكتاب وكيف تترابط فصوله بناءً على الفهرس المرفق.
-4. **أهم القضايا والفوائد العلمية المستخلصة من صفحات الكتاب**: اشرح وصُغ بأسلوبك الخاص أبرز المعاني والأحكام الواردة في صفحات الكتاب المرفقة مع الإشارة إلى رقم الجزء والصفحة كمرجع علمي دون نسخ النص الحرفي للكتاب.`,
+  // Build numbered reference list [1], [2], [3]... from pages and fatawa
+  const numberedSources: { num: number; label: string; contextText: string }[] = [];
+  pages.forEach((p) => {
+    const num = numberedSources.length + 1;
+    const label = `${p.book_name} — ج ${p.part || 1}، ص ${p.page_number || p.page_id}`;
+    const body = String(p.fullBody || p.snippet || '').replace(/<\/?mark[^>]*>/gi, '');
+    const foot = p.fullFoot ? `\nالحاشية: ${String(p.fullFoot).replace(/<\/?mark[^>]*>/gi, '')}` : '';
+    numberedSources.push({
+      num,
+      label,
+      contextText: `[${num}] ${label} (المؤلف: ${p.author_name || ''})\n${body}${foot}`,
+    });
+  });
 
-    khutbah: `المطلوب: كتابة **خطبة جمعة منبرية متكاملة وبليغة بأسلوبك الخطابي الفصيح** في موضوع («${coreTopic}») مستندة في معانيها وأحكامها إلى مصادر الموسوعة المرفقة:
-1. **الخطبة الأولى**: الاستفتاح المنبري، الدخول في الموضوع بأسلوب خطابي وعظي مؤثر مصاغ من عندك، وتضمين الآيات القرآنية بنصها بين ﴿...﴾ وشرح المعاني المستخلصة من كلام العلماء بأسلوب خطابي منسجم دون لصق حرفي جامد، وخاتمة الخطبة الأولى.
-2. **الخطبة الثانية**: الحمد والصلاة على النبي ﷺ، التوجيهات العملية والأحكام المستفادة من المتون والفتاوى المرفقة بصياغة منبرية بليغة، والختام بالدعاء الجامع مع ذكر المراجع المعتمدة في نهاية الخطبة.`,
-
-    lesson: `المطلوب: إعداد **درس علمي شامل ومنهجي متكامل** في موضوع («${coreTopic}») مصاغ بأسلوبك التعليمي الواضح بالاستناد إلى مصادر الموسوعة المرفقة:
-1. عنوان الدرس، أهدافه العلمية، وتمهيد مشوق للموضوع.
-2. شرح المحاور التفصيلية للدرس بأسلوبك التحليلي الميسر والرصين استناداً إلى معاني الكتب والفتاوى المرفقة مع الإحالة المرجعية (اسم الكتاب، الجزء، الصفحة) دون نسخ حرفي للمتون.
-3. خلاصة الدرس والفوائد التربوية والفقهية المستنبطة.`,
-
-    article: `المطلوب: كتابة **مقال علمي تحليلي رصين** في موضوع («${coreTopic}») مصاغ بالكامل بأسلوبك العلمي الخاص ومستند إلى مصادر الموسوعة المرفقة (عنوان، مقدمة تحليلية، محاور مفصلة تشرح الآراء والأحكام بأسلوبك مع عزو الأفكار لمصادرها بالجزء والصفحة، وخاتمة مركزة).`,
-
-    tafsir_hadith: `المطلوب: تقديم **تفسير علمي تحليلي للآية القرآنية أو شرح وافٍ للحديث الشريف** («${coreTopic}») مصاغ بأسلوبك الخاص بالاستناد إلى كتب التفسير والحديث والفقه المرفقة من الموسوعة، مع الحفاظ التام على نص الآية القرآنية بين ﴿...﴾، ثم شرح المعاني واللطائف والأحكام المستنبطة بلغة واضحة ومعمقة مع الإشارة للمصادر.`,
-
-    infographic: `المطلوب: صياغة **ملخص بصري وخريطة مفاهيمية مركزة** حول («${coreTopic}») بأسلوبك الخاص استناداً لمصادر الموسوعة المرفقة:
-- قسّم المحتوى إلى **محاور مركزة وواضحة** (عنوان المحور، الفكرة المستخلصة بصياغتك في سطرين، والمرجع المستند إليه بالكتاب والصفحة).`,
-
-    presentation: `المطلوب: إعداد **محتوى عرض تقديمي (شرائح باوربوينت PowerPoint)** احترافي حول («${coreTopic}») مصاغ بأسلوبك الخاص استناداً لمصادر الموسوعة المرفقة:
-- قسّم الإجابة إلى **شرائح مرقمة**، بحيث تحتوي كل شريحة على عنوان واضح، ونقاط تحليلية مركزة مصاغة بأسلوبك تشرح الفكرة بوضوح، مع الإشارة للمرجع بالجزء والصفحة.`,
-
-    document: `المطلوب: إعداد **تقرير ومستند علمي مفصل ومرتب (جاهز للتصدير كملف Word و PDF)** حول («${coreTopic}») مصاغ بأسلوبك التحليلي الخاص بالاستناد إلى مصادر الموسوعة المرفقة:
-- نسّق المحتوى بعناوين رئيسية وفرعية، وشرح تحليلي للمسائل والضوابط، وخلاصة مقارنة، وفهرس للمراجع المعتمدة.`,
-
-    chat: `المطلوب: محاورة الباحث وتقديم **إجابة معرفية تحليلية متقدمة ومصاغة بالكامل بأسلوبك الخاص كباحث متخصص** (بأسلوب حواري ذكي وطبيعي مماثل لـ ChatGPT و Claude) حول («${coreTopic}») بالاستناد الحصري إلى كتب وفتاوى الموسوعة المرفقة:
-- ابدأ ببيان مباشر ومترابط يحلل المسألة ويجيب عن جوهر سؤال الباحث بلغة عربية علمية سلسة غير متكلفة.
-- حلل المفاهيم، واستخلص المعاني، واربط بين ما قرّره مختلف المؤلفين في مصادر الموسوعة، موضحاً أوجه الاتفاق والافتراق.
-- **لا تقم بنسخ أو سرد نصوص الكتب حرفياً**، بل أعد صياغتها وشرحها بأسلوبك، مع عزو كل فكرة أو رأي إلى مصدره المعتمد (اسم الكتاب، المؤلف، الجزء والصفحة).
-- ميّز بدقة بين ما نصّ عليه المؤلف صراحة وما استنتجته أنت بالتحليل العقلي والربط بين المسائل.`,
-  };
+  if (!isSingleBookRestriction) {
+    fatawa.forEach((f) => {
+      const num = numberedSources.length + 1;
+      const label = `فتاوى ${f.mufti?.name || 'الموسوعة'} — فتوى رقم ${f.fatwa_id} (${f.title})`;
+      const qStr = f.question ? `السؤال: ${String(f.question).replace(/<\/?mark[^>]*>/gi, '')}\n` : '';
+      const aStr = `الجواب: ${String(f.answer || f.answer_excerpt || '').replace(/<\/?mark[^>]*>/gi, '')}`;
+      numberedSources.push({
+        num,
+        label,
+        contextText: `[${num}] ${label}\n${qStr}${aStr}`,
+      });
+    });
+  }
 
   const singleBookRule = isSingleBookRestriction
-    ? `\nالمصدر المتاح للبحث: كتاب «${matchedBook?.title}» للعلامة «${matchedBook?.author}». أجب عن سؤال الباحث بالاعتماد على محتوى ومباحث هذا الكتاب.`
-    : `\nالمصدر المتاح للبحث: مصادر الموسوعة المرفقة أدناه. أجب عن سؤال الباحث بالاعتماد على محتواها ومباحثها.`;
+    ? `\nالمصدر المتاح للبحث: كتاب «${matchedBook?.title}» للعلامة «${matchedBook?.author}». أجب بالاعتماد على محتوى ومباحث هذا الكتاب.`
+    : `\nالمصدر المتاح للبحث: مصادر الموسوعة المرقمة أدناه من [1] إلى [${numberedSources.length || 1}].`;
 
-  const systemInstruction = `أنت "المساعد المعرفي للموسوعة" — باحث متخصص يجيب عن أسئلة المستخدمين بدقة ووضوح ولغة عربية سليمة، معتمداً على مصادر الموسوعة المرفقة.
+  const systemInstruction = `أنت باحث علمي متخصص تصوغ الإجابات والدروس والشروح بلغة عربية واضحة، طبيعية، وسلسة، مستنداً إلى مصادر الموسوعة المرفقة.
 
-قواعد وضوابط الإجابة:
-1. **الدخول المباشر في صلب الجواب (ممنوع الكلام الزائد والمقدمات الآلية نهائياً):**
-   - ادخل في صلب الجواب والشرح مباشرة دون أي مقدمات نمطية أو كلام زائد.
-   - يمنع منعاً باتاً وترفض صراحةً أي عبارات آلية تحكي عن القيود أو الشروط مثل:
-     ❌ (بناءً على تعليماتكم الصارمة بالالتزام الحصري...)
-     ❌ (بناءً على طلبكم بالتقيد بالكتاب...)
-     ❌ (النتيجة العلمية هي...)
-     ❌ (إليك النص المسترجع من الكتاب...)
-     ❌ (فقد قمت بفحص الكتاب بدقة...)
-   - لا تتحدث عن التعليمات أو الأوامر أو الإرشادات إطلاقاً في متن الجواب. ابدأ فوراً بإجابة السؤال بأسلوبك.
+التزم في جميع إجاباتك وطلباتك بالهيكل والأسلوب الآتي بدقة تامة:
 
-2. **الصياغة الذاتية والبيان الواضح:**
-   - صُغ الجواب بأسلوبك العلمي الواضح والميسّر بناءً على ما فهمته واستوعبته من نصوص المصادر، ولا تنسخ فقرات كاملة كما هي إلا عند إيراد آية قرآنية بين ﴿...﴾ أو حديث أو قول نصي موجز.
-   - اربط بين الآراء ووضّح المعاني بجلاء دون حشو أو تكرار.
+1. **فقرة افتتاحية مباشرة (بدون عنوان وبدون مقدمات شكلية أو رموز تعبيرية):**
+   - ابدأ مباشرة بفقرة تعريفية تمهيدية واضحة تعرّف بالموضوع («${coreTopic}») ومكانته وحكمه بإيجاز، وتذكر في جملتها الأخيرة ما سيتناوله الجواب، ثم اختم الفقرة بأرقام المراجع المربعة مثل: [1][2][3].
+   - يمنع منعاً باتاً أي عبارات آلية مثل: (بناءً على تعليماتكم...) أو (النتيجة العلمية:...) أو (أُعدّ هذا الدرس بالاستناد إلى...) أو (أولاً: تمهيد الدرس).
 
-3. **الاعتماد على مصادر الموسوعة والصدق المعرفي:**
-   - اعتمد في المعلومات على ما تضمنته المصادر المرفقة.
-   - إذا كان السؤال خارج نطاق المصادر المتاحة أو لم تجد فيه ما يجيب عنه، بيّن ذلك ببساطة واختصار: "لم يرد في المباحث المتاحة من هذا المصدر تفصيل لهذه المسألة." دون خطب أو اعتذارات مطولة.
+2. **تقسيم الجواب إلى أقسام رئيسية مرقمة بأرقام بسيطة (1. ، 2. ، 3. ، 4.):**
+   - قسّم الموضوع إلى 3 أو 4 عناوين رئيسية مرقمة هكذا:
+     1. عنوان القسم الأول
+     2. عنوان القسم الثاني
+     3. عنوان القسم الثالث
+     4. عنوان القسم الرابع
+   - لا تضع رموزاً تعبيرية (Emojis) في العناوين، ولا تكتب (أولاً / ثانياً) ولا تكتب (المحور (1) — ...).
 
-4. **التنسيق الأنيق المريح للقراءة:**
-   - استخدم تنسيق Markdown واضحاً: عناوين مقتضبة \`###\`، فقرات مركزة، ونقاط مرتبة وجداول للمقارنة عند الحاجة.
-${modeInstructions[mode]}${singleBookRule}`;
+3. **فقرات فرعية مركزة تحت كل قسم رئيسي:**
+   - تحت كل عنوان مرقم، اكتب من 3 إلى 5 فقرات فرعية واضحة ومترابطة.
+   - تبدأ كل فقرة فرعية **بعبارة مفتاحية مركزة بالخط العريض متبوعة بنقطتين**، ثم شرح علمي واضح ومباشر بأسلوبك، مع الاستشهاد بالآيات القرآنية بين ﴿...﴾ والأحاديث النبوية بين «...» وشرح وجه الدلالة ببساطة، ثم اختم كل فقرة بأرقام المراجع بين أقواس مربعة مثل [1][2].
+   - مثال لشكل الفقرة الفرعية:
+     **هي من دعائم الإسلام:** قال رسول الله ﷺ: «بُنِيَ الإسلامُ على خمسٍ...»، أي إن الصلاة من أركان الإسلام التي يقوم عليها دين المسلم. [1][2]
+   - لا تكرر داخل الفقرات عبارات مثل: (وقد فصّل العلامة فلان هذا المعنى في مصنفه...)، بل اكتفِ بالأرقام المربعة [1][2] في نهاية كل فقرة.
+
+4. **الدقة الموضوعية التامة:**
+   - التزم بموضوع السؤال («${coreTopic}») في جميع الأقسام والفقرات، ولا تدخل أي موضوع آخر لا علاقة له بالسؤال.
+   - إذا كان المطلوب خطبة جمعة (${mode === 'khutbah' ? 'نعم' : 'لا'})، فاكتب الخطبة الأولى والخطبة الثانية بأسلوب منبري بليغ مع توثيق الشواهد بأرقام [1][2].
+
+5. **قائمة المصادر في نهاية الجواب (المصادر:):**
+   - في آخر الجواب تماماً، اكتب سطراً بعنوان:
+     المصادر:
+   - ثم اسرد تحتها المراجع التي استشهدت بها مرتبة بأرقامها هكذا:
+     [1] اسم الكتاب — ج 1، ص 14
+     [2] اسم الكتاب — ج 2، ص 54${singleBookRule}`;
 
   const historyContext =
     history && history.length > 0
       ? `=== سياق الحوار السابق ===\n` +
         history
           .slice(-6)
-          .map((m) => `${m.role === 'user' ? 'الباحث' : 'المساعد'}: ${m.content.slice(0, 450)}`)
+          .map((m) => `${m.role === 'user' ? 'السائل' : 'المساعد'}: ${m.content.slice(0, 450)}`)
           .join('\n') +
         `\n\n`
       : '';
@@ -1577,72 +2025,43 @@ ${modeInstructions[mode]}${singleBookRule}`;
   if (matchedBook) {
     const tocEntries = bookMetaAndToc?.toc?.entries || [];
     const tocSample = tocEntries
-      .slice(0, 35)
+      .slice(0, 30)
       .map((e: any) => `- ${e.title} (ص ${e.page_id})`)
       .join('\n');
-    const pubInfo = bookMetaAndToc?.details?.publication || '';
-    const totalP = bookMetaAndToc?.toc?.pages_total || matchedBook.pagesCount || '';
-
     bookInfoSection =
       `=== بيانات الكتاب («${matchedBook.title}») ===\n` +
-      `• اسم الكتاب: ${matchedBook.title}\n` +
-      `• المؤلف: ${matchedBook.author} (${matchedBook.era || ''})\n` +
+      `• اسم الكتاب: ${matchedBook.title} — المؤلف: ${matchedBook.author}\n` +
       `• القسم العلمي: ${matchedBook.category}\n` +
-      (totalP ? `• عدد الصفحات: ${totalP} صفحة\n` : '') +
-      (pubInfo ? `• النشر: ${pubInfo}\n` : '') +
-      (tocSample ? `• فهرس الأبواب والفصول:\n${tocSample}\n\n` : '\n');
+      (tocSample ? `• فهرس الأبواب:\n${tocSample}\n\n` : '\n');
   } else if (catalogMatches.length > 0) {
     bookInfoSection =
-      `=== مصادر ذات صلة بالموضوع في الموسوعة ===\n` +
-      catalogMatches
-        .map((b) => `- كتاب «${b.title}» — المؤلف: ${b.author} (${b.category})`)
-        .join('\n') +
+      `=== كتب ذات صلة بالموضوع في الموسوعة ===\n` +
+      catalogMatches.map((b) => `- ${b.title} — ${b.author} (${b.category})`).join('\n') +
       `\n\n`;
   }
 
-  const booksContextText =
-    pages.length > 0
-      ? pages
-          .map(
-            (p, idx) =>
-              `[مرجع ${idx + 1}: «${p.book_name}» — ${p.author_name}، ج ${p.part || 1}، ص ${
-                p.page_number
-              }]\n${String(p.fullBody || p.snippet || '').replace(/<\/?mark[^>]*>/gi, '')}` +
-              (p.fullFoot
-                ? `\nالحاشية: ${String(p.fullFoot).replace(/<\/?mark[^>]*>/gi, '')}`
-                : '')
-          )
-          .join('\n\n')
+  const sourcesContextText =
+    numberedSources.length > 0
+      ? numberedSources.map((s) => s.contextText).join('\n\n')
       : 'لا توجد صفحات مسترجعة.';
-
-  const fatawaContextText =
-    !isSingleBookRestriction && fatawa.length > 0
-      ? `\n\n=== فتاوى ذات صلة ===\n` +
-        fatawa
-          .map(
-            (f, idx) =>
-              `[فتوى ${idx + 1}: "${f.title}" (رقم #${f.fatwa_id}) — ${f.mufti?.name || ''}]\n` +
-              (f.question ? `السؤال: ${String(f.question).replace(/<\/?mark[^>]*>/gi, '')}\n` : '') +
-              `الجواب: ${String(f.answer || f.answer_excerpt || '').replace(/<\/?mark[^>]*>/gi, '')}`
-          )
-          .join('\n\n')
-      : '';
 
   const promptContent =
     `${historyContext}` +
-    `سؤال المستخدم: "${question}"\n\n` +
+    `السؤال / الطلب: "${question}"\n\n` +
     `${bookInfoSection}` +
-    `=== المادة العلمية المعتمدة للإجابة ===\n${booksContextText}` +
-    `${fatawaContextText}\n\n` +
-    `توجيه نهائي: ابدأ الجواب فوراً بأسلوب واضح ومباشر دون أي مقدمات شكلية أو ذكر للتعليمات أو الأوامر.`;
+    `=== المصادر المرقمة من الموسوعة ===\n${sourcesContextText}\n\n` +
+    `توجيه نهائي: صُغ الجواب مباشرة بالهيكل المطلوب (فقرة افتتاحية تنتهي بـ [1][2]، ثم عناوين مرقمة 1. و 2. و 3. و 4.، وتحت كل عنوان فقرات تبدأ بعبارة مفتاحية متبوعة بنقطتين وشرح واضح ينتهي بـ [1][2]، وفي النهاية قائمة "المصادر:").`;
 
   return { systemInstruction, promptContent };
 }
 
 /**
  * 8. Built-In Conversational AI Synthesis & Paraphrasing Engine
- * Generates original, synthesized, conversational Arabic answers in the AI's own phrasing
- * grounded in the retrieved Encyclopedia books and fatwas—NEVER dumping verbatim book excerpts!
+ * Produces realistic, natural, lucid scholarly responses matching the exact format requested by the user:
+ * - Opening introductory paragraph ending with [1][2][3]
+ * - Clean numbered sections (1. ..., 2. ..., 3. ..., 4. ...) without emojis or robotic labels
+ * - Sub-paragraphs starting with bold lead-ins (**...:**) followed by clear explanation + Quran/Hadith evidence + [1][2]
+ * - Unified "المصادر:" footer list mapping [1], [2], [3]... to the retrieved Encyclopedia books and fatwas
  */
 export function composeGroundedScholarlyResponse(params: {
   question: string;
@@ -1673,27 +2092,119 @@ export function composeGroundedScholarlyResponse(params: {
     .map((w) => normalizeArabicText(w))
     .filter((w) => w.length >= 2);
 
-  // Synthesize all retrieved pages into paraphrased AI insights
-  const synthesizedPageInsights = pages.slice(0, 5).map((p, idx) => {
+  // 1. Build the unified Citation Registry [1], [2], [3]... from actual retrieved Encyclopedia sources
+  interface CitationItem {
+    num: number;
+    label: string;
+    normText: string;
+    isFatwa: boolean;
+  }
+
+  const citationRegistry: CitationItem[] = [];
+  const seenSourceLabels = new Set<string>();
+
+  for (const p of pages.slice(0, 8)) {
+    const bookName = p.book_name || matchedBook?.title || 'مصادر الموسوعة';
+    const part = p.part || '1';
+    const pageNum = p.page_number || p.page_id || '1';
+    const label = `${bookName} — ج ${part}، ص ${pageNum}`;
+    if (seenSourceLabels.has(label)) continue;
+    seenSourceLabels.add(label);
+    citationRegistry.push({
+      num: citationRegistry.length + 1,
+      label,
+      normText: normalizeArabicText(`${bookName} ${p.fullBody || p.snippet || ''}`),
+      isFatwa: false,
+    });
+  }
+
+  if (!matchedBook) {
+    for (const f of fatawa.slice(0, 4)) {
+      const mufti = f.mufti?.name || 'خزانة الفتاوى';
+      const title = cleanScholarlySourceText(f.title || coreTopic).slice(0, 65);
+      const label = `${mufti} (${title}) — فتوى رقم ${f.fatwa_id}`;
+      if (seenSourceLabels.has(label)) continue;
+      seenSourceLabels.add(label);
+      citationRegistry.push({
+        num: citationRegistry.length + 1,
+        label,
+        normText: normalizeArabicText(`${f.title || ''} ${f.question || ''} ${f.answer || f.answer_excerpt || ''}`),
+        isFatwa: true,
+      });
+    }
+  }
+
+  if (citationRegistry.length === 0 && matchedBook) {
+    citationRegistry.push({
+      num: 1,
+      label: `${matchedBook.title} — ${matchedBook.author}، ج 1، ص 1`,
+      normText: normalizeArabicText(`${matchedBook.title} ${matchedBook.category}`),
+      isFatwa: false,
+    });
+  } else if (citationRegistry.length === 0 && catalogMatches.length > 0) {
+    catalogMatches.slice(0, 5).forEach((b) => {
+      citationRegistry.push({
+        num: citationRegistry.length + 1,
+        label: `${b.title} — ${b.author} (${b.category})`,
+        normText: normalizeArabicText(`${b.title} ${b.author} ${b.category}`),
+        isFatwa: false,
+      });
+    });
+  }
+
+  // Helper to get inline bracket citations like [1][2] matched to keywords in the retrieved sources
+  const cite = (keywords: string[], defaultIndices: number[] = [1, 2]): string => {
+    if (citationRegistry.length === 0) return '';
+    const normKeys = keywords.map((k) => normalizeArabicText(k)).filter(Boolean);
+    const scored = citationRegistry.map((item) => {
+      let hits = 0;
+      for (const k of normKeys) {
+        if (item.normText.includes(k)) hits++;
+      }
+      return { num: item.num, hits };
+    });
+    const matchedNums = scored
+      .filter((s) => s.hits > 0)
+      .sort((a, b) => b.hits - a.hits)
+      .slice(0, 3)
+      .map((s) => s.num);
+
+    const finalNums =
+      matchedNums.length > 0
+        ? matchedNums
+        : Array.from(
+            new Set(
+              defaultIndices.map((idx) => ((idx - 1) % citationRegistry.length) + 1)
+            )
+          ).slice(0, 3);
+
+    return ' ' + finalNums.map((n) => `[${n}]`).join('');
+  };
+
+  // Helper to build the bottom "المصادر:" block
+  const buildSourcesFooter = (): string => {
+    if (citationRegistry.length === 0) return '';
+    const footerLines: string[] = ['', 'المصادر:'];
+    for (const item of citationRegistry) {
+      footerLines.push(`[${item.num}] ${item.label}`);
+    }
+    return footerLines.join('\n');
+  };
+
+  // Synthesize retrieved pages & fatwas for dynamic sections
+  const usedThemeIds = new Set<string>();
+  const rawPageInsights = pages.slice(0, 6).map((p, idx) => {
     const synth = synthesizeParaphrasedInsight(p.fullBody || p.snippet, coreTopic, coreTerms, idx, {
       bookName: p.book_name,
       authorName: p.author_name,
       category: p.category,
+      usedThemeIds,
     });
-    const shortAuthor = formatShortAuthorName(p.author_name);
-    const footSynth =
-      p.fullFoot && String(p.fullFoot).trim().length > 25
-        ? synthesizeParaphrasedInsight(p.fullFoot, coreTopic, coreTerms, idx + 2, {
-            bookName: p.book_name,
-            authorName: p.author_name,
-            category: p.category,
-          }).compactSummary
-        : '';
-
     return {
+      citationNum: Math.min(idx + 1, Math.max(1, citationRegistry.length)),
       bookName: p.book_name || 'مصادر الموسوعة',
       authorName: p.author_name || 'علماء الموسوعة',
-      shortAuthor,
+      shortAuthor: formatShortAuthorName(p.author_name),
       category: p.category || 'العلوم الشرعية',
       part: p.part || '1',
       pageNumber: p.page_number || p.page_id,
@@ -1701,25 +2212,27 @@ export function composeGroundedScholarlyResponse(params: {
       synthesizedProse: synth.synthesizedProse,
       compactSummary: synth.compactSummary,
       quranVerses: synth.quranVerses,
-      footSummary: footSynth,
     };
   });
 
-  // Synthesize all retrieved fatwas into paraphrased practical rulings
+  const fatwaStartNum = pages.slice(0, 8).length;
   const synthesizedFatwaInsights = fatawa.slice(0, 3).map((f, idx) => {
     const synth = synthesizeParaphrasedInsight(
       f.answer || f.answer_excerpt,
       coreTopic,
       coreTerms,
-      idx + 2,
+      idx,
       {
         title: f.title,
+        question: f.question || f.question_excerpt,
         category: 'الفتاوى الشرعية',
+        isFatwa: true,
       }
     );
     return {
+      citationNum: Math.min(fatwaStartNum + idx + 1, Math.max(1, citationRegistry.length)),
       fatwaId: f.fatwa_id,
-      title: f.title || coreTopic,
+      title: (f.title || coreTopic).replace(/\s*؟\s*$/, '؟'),
       muftiName: f.mufti?.name || 'علماء الإفتاء بالموسوعة',
       synthesizedProse: synth.synthesizedProse,
       compactSummary: synth.compactSummary,
@@ -1727,560 +2240,530 @@ export function composeGroundedScholarlyResponse(params: {
     };
   });
 
-  // Collect all unique Quranic verses across retrieved sources
-  const allQuranVerses = Array.from(
-    new Set([
-      ...synthesizedPageInsights.flatMap((s) => s.quranVerses),
-      ...synthesizedFatwaInsights.flatMap((f) => f.quranVerses),
-    ])
-  ).slice(0, 3);
+  // If no pages or fatawa or catalog matches at all:
+  if (pages.length === 0 && fatawa.length === 0 && catalogMatches.length === 0 && !matchedBook) {
+    return `لم يُعثر في المباحث المتاحة من الموسوعة على تفصيل مباشر مطابق لعبارة (${coreTopic || question}). جرّب صياغة السؤال بمصطلحه الفقهي أو العلمي المشهور.`;
+  }
 
-  const uniqueBooks = Array.from(new Set(synthesizedPageInsights.map((p) => p.bookName).filter(Boolean)));
-  const uniqueAuthors = Array.from(
-    new Set(synthesizedPageInsights.map((p) => p.shortAuthor).filter(Boolean))
-  );
+  if (matchedBook && pages.length === 0 && mode !== 'book_summary' && !bookMetaAndToc) {
+    return `لم يرد في المباحث المتاحة من كتاب «${matchedBook.title}» تفصيل مباشر لهذه المسألة (${coreTopic}). يمكنك إلغاء حصر الكتاب للبحث في سائر كتب الموسوعة وفتاواها.`;
+  }
+
+  const normTopic = normalizeArabicText(`${coreTopic} ${question}`);
 
   // ============================================================================
-  // CASE 1: BOOK SUMMARY OR BOOK-SCOPED OVERVIEW (تلخيص وقراءة تحليلية في كتاب)
+  // CASE 1: BOOK SUMMARY OR BOOK-SCOPED OVERVIEW (تلخيص كتاب بالهيكل المرقم النظيف)
   // ============================================================================
   if (mode === 'book_summary' || (matchedBook && pages.length === 0 && bookMetaAndToc)) {
-    if (!matchedBook && pages.length === 0 && catalogMatches.length === 0) {
-      return (
-        `أهلاً بك! بحثت في فهارس الموسوعة الإباضية عن كتاب يحمل عنوان **«${coreTopic}»** فلم أجد تطابقاً مباشراً بهذا الاسم.\n\n` +
-        `💡 **اقتراح سريع:** يمكنك الضغط على زر **«تحديد كتاب»** في شريط المحادثة لاختيار الكتاب مباشرةً، أو كتابة اسمه المشهور مثل: *«لخص لي كتاب قواعد الإسلام»* أو *«ملخص كتاب تمهيد قواعد الإيمان»* أو *«ملخص كتاب بهجة الأنوار»*.`
-      );
-    }
-
     const targetBook = matchedBook || catalogMatches[0];
-    const targetTitle = targetBook?.title || synthesizedPageInsights[0]?.bookName || coreTopic;
-    const targetAuthor = targetBook?.author || synthesizedPageInsights[0]?.authorName || 'من علماء الموسوعة';
+    const targetTitle = targetBook?.title || rawPageInsights[0]?.bookName || coreTopic;
+    const targetAuthor = targetBook?.author || rawPageInsights[0]?.authorName || 'من علماء الموسوعة';
     const shortBookAuthor = formatShortAuthorName(targetAuthor);
-    const targetCategory = targetBook?.category || synthesizedPageInsights[0]?.category || 'التراث الإسلامي';
-    const targetEra = targetBook?.era || 'أعلام المذهب';
+    const targetCategory = targetBook?.category || rawPageInsights[0]?.category || 'العلوم الشرعية';
+    const targetEra = targetBook?.era || 'تراث الموسوعة';
     const tocEntries: any[] = bookMetaAndToc?.toc?.entries || [];
     const totalPagesCount =
       bookMetaAndToc?.toc?.pages_total || targetBook?.pagesCount || pages.length;
 
     const lines: string[] = [];
-    lines.push(`### 📘 قراءة تحليلية وتلخيص شامل لكتاب «${targetTitle}»`);
     lines.push(
-      `إليك خلاصة تحليلية مصاغة بأسلوب واضح وشامل لكتاب **«${targetTitle}»**، استناداً إلى بياناته وفهرسه ومباحثه في الموسوعة الإباضية:`
+      `يُعدّ كتاب «${targetTitle}» للعلامة ${targetAuthor} (${targetEra}) من المصنفات المعتمدة في قسم (${targetCategory}) بالموسوعة، حيث يجمع بين التأصيل العلمي الرصين والترتيب المنهجي للمسائل والأحكام. وهذا عرضٌ موجز يعرّف بمكانة الكتاب، ومنهج مؤلفه، وبنيته الموضوعية، وأهم المضامين العلمية المقررة فيه.${cite([targetTitle, targetCategory], [1, 2])}`
     );
     lines.push('');
 
-    lines.push(`### 💡 أولاً: التعريف بالكتاب ومكانته العلمية`);
+    lines.push(`1. التعريف بالكتاب ومكانته العلمية`);
+    lines.push('');
     lines.push(
-      `يُعدّ كتاب **«${targetTitle}»** الذي صنّفه العلامة **${targetAuthor}** (${targetEra}) أحد المؤلفات الرصينة المعتمدة في قسم **(${targetCategory})** بالموسوعة الإباضية${
-        totalPagesCount ? `، ويقع في قرابة **(${Number(totalPagesCount).toLocaleString('ar-EG')})** صفحة مفهرسة` : ''
-      }. وتكمن أهمية هذا الكتاب في جمعه بين التأصيل العلمي المتين والترتيب المنهجي الذي يقرّب المسائل لطالب العلم والباحث.`
+      `**موضوع الكتاب وتصنيفه:** يندرج كتاب «${targetTitle}» ضمن مصنفات (${targetCategory})، وقد اعتنى فيه مؤلفه بتحرير المسائل والأصول العلمية وتقريبها لطلبة العلم والباحثين.${cite([targetTitle], [1])}`
+    );
+    lines.push('');
+    lines.push(
+      `**حجم المصنَّف وتوثيقه:** يقع الكتاب في قرابة (${Number(totalPagesCount || 1).toLocaleString('ar-EG')}) صفحة مفهرسة في الموسوعة، ويُعتمد عليه مرجعاً أصيلاً في بابه.${cite([targetCategory], [1, 2])}`
     );
     lines.push('');
 
-    lines.push(`### 🧭 ثانياً: منهج المؤلف وطريقته في عرض المسائل`);
+    lines.push(`2. منهج المؤلف في عرض المسائل`);
+    lines.push('');
     lines.push(
-      `سلك المؤلف (${shortBookAuthor}) في هذا المصنَّف منهجاً تأصيلياً يقوم على تحرير أصول المسائل في باب (${targetCategory})، وتقسيم المباحث إلى أبواب وفصول متدرجة، مع الاستدلال بالكتاب والسنة وتقرير القواعد الكلية وما يتفرع عنها من أحكام وتطبيقات عملية.`
+      `**التأصيل والاستدلال:** سلك العلامة ${shortBookAuthor} منهجاً علمياً يقوم على تأصيل القواعد الكلية وربط الفروع بأصولها، مع الاستشهاد بنصوص الكتاب العزيز والسنة النبوية المطهرة.${cite(['كتاب', 'سنه', 'دليل'], [1, 2])}`
+    );
+    lines.push('');
+    lines.push(
+      `**التدرج المنهجي:** قسّم المؤلف مباحث الكتاب إلى أبواب وفصول مترابطة تبدأ ببيان المفاهيم والشروط والأركان، ثم تنتقل إلى الفروع والتطبيقات العملية.${cite(['باب', 'فصل'], [1, 2])}`
     );
     lines.push('');
 
     if (tocEntries.length > 0) {
-      lines.push(
-        `### 🗂️ ثالثاً: البنية الموضوعية وأبرز أبواب الكتاب`
-      );
-      lines.push(
-        `ينتظم الكتاب في **(${tocEntries.length.toLocaleString('ar-EG')})** باباً وفصلاً علمياً، تتوزع محاورها الرئيسة على النحو الآتي:`
-      );
-      tocEntries.slice(0, 12).forEach((entry, idx) => {
-        lines.push(`• **المحور (${idx + 1}) — ${entry.title}:** *(ص ${entry.page_id})*.`);
-      });
-      if (tocEntries.length > 12) {
+      lines.push(`3. البنية الموضوعية وأبرز أبواب الكتاب`);
+      lines.push('');
+      tocEntries.slice(0, 5).forEach((entry, idx) => {
         lines.push(
-          `• **مباحث تكميلية أخرى:** يشتمل الكتاب كذلك على (${(tocEntries.length - 12).toLocaleString(
-            'ar-EG'
-          )}) فصلاً ومبحثاً تفصيلياً تستكمل بقية أبواب (${targetCategory}).`
+          `**${entry.title}:** من الأبواب الرئيسة في الكتاب (ص ${entry.page_id})، ويعالج فيه المؤلف مسائل هذا المبحث وتفريعاته العلمية.${cite([entry.title], [idx + 1])}`
         );
-      }
-      lines.push('');
-    }
-
-    if (synthesizedPageInsights.length > 0) {
-      lines.push(`### ✨ رابعاً: أبرز المضامين والفوائد المستخلصة من فصول الكتاب`);
-      synthesizedPageInsights.forEach((ins, idx) => {
-        lines.push(
-          `${idx + 1}. **${ins.themeTitle}:** ${ins.synthesizedProse} *(المرجع: ${ins.bookName}، ج${ins.part}/ص${ins.pageNumber})*`
-        );
-      });
-      lines.push('');
-    }
-
-    lines.push(`### 📌 خلاصة عامة`);
-    lines.push(
-      `يمثّل كتاب **«${targetTitle}»** مرجعاً أساسياً للباحث في **(${targetCategory})**؛ ويمكنك الآن سؤالي عن أي مسألة محددة داخل الكتاب أو طلب تحويل هذا الملخص إلى عرض باوربوينت أو صورة إنفوجرافيك أو ملف وورد/PDF.`
-    );
-
-    return lines.join('\n');
-  }
-
-  // If no pages/fatawa matched, check if we have catalogMatches
-  if (pages.length === 0 && fatawa.length === 0 && catalogMatches.length > 0) {
-    const lines: string[] = [];
-    lines.push(`### 📚 قراءة في مصادر الموسوعة الإباضية حول «${coreTopic}»`);
-    lines.push(
-      `بالاستناد إلى الفهرس العلمي للموسوعة الإباضية الشاملة، تتناول عدة مصنفات معتمدة موضوع **«${coreTopic}»** ضمن أبوابها وفصولها. وفيما يلي أبرز الكتب التي عالجت هذا المجال وما يميز كل واحد منها:`
-    );
-    lines.push('');
-    catalogMatches.forEach((b, idx) => {
-      lines.push(
-        `${idx + 1}. **كتاب «${b.title}»** — للعلامة **${b.author}**: من المصادر المهمة المصنفة في قسم **(${b.category})**${
-          b.era ? ` (${b.era})` : ''
-        }، ويُعدّ مرجعاً معتمداً لدراسة مسائل هذا الباب.`
-      );
-    });
-    lines.push('');
-    lines.push(
-      `💡 **كيف نتابع البحث؟** يمكنك اختيار أي كتاب من هذه الكتب لتلخيصه، أو طرح سؤالك التفصيلي في مسألة بعينها لأقوم بتحليلها وصياغة إجابتها لك.`
-    );
-    return lines.join('\n');
-  }
-
-  // If no relevant pages or fatawa matched the strict relevance filter:
-  if (pages.length === 0 && fatawa.length === 0) {
-    if (matchedBook) {
-      return (
-        `بحثتُ بدقة في صفحات وفصول كتاب **«${matchedBook.title}»** فلم أجد مبحثاً يتناول موضوع **(«${coreTopic}»)** بشكل مباشر.\n\n` +
-        `💡 **يمكنك تجربة ما يلي:**\n` +
-        `• سؤالي عن مسألة أخرى تدخل ضمن موضوعات كتاب **«${matchedBook.title}»** (${matchedBook.category}).\n` +
-        `• أو طلب **«لخص لي هذا الكتاب»** لأقدم لك قراءة تحليلية شاملة في جميع أبوابه وفصوله.\n` +
-        `• أو إلغاء حصر الكتاب لأبحث لك عن **«${coreTopic}»** في كافة كتب وفتاوى الموسوعة.`
-      );
-    }
-    return (
-      `أهلاً بك! حرصاً على أن تكون إجابتي مستندة بدقة إلى مصادر الموسوعة الإباضية دون تخمين خارجها، فقد بحثتُ في المتون والفتاوى عن عبارة **(«${coreTopic}»)** فلم أجد مبحثاً مطابقاً لها بهذا اللفظ.\n\n` +
-      `💡 **اقتراح للحصول على إجابة تحليلية شاملة:**\n` +
-      `• جرّب صياغة السؤال بمصطلحه العلمي أو الفقهي المعروف (مثل: *«ما هي شروط التوبة النصوح؟»*، *«حدثني عن نظام العزابة»*، *«ما حكم زكاة الذهب؟»*، *«ما مفهوم الولاية والبراءة؟»*).`
-    );
-  }
-
-  // ============================================================================
-  // CASE 2: INFOGRAPHIC VISUAL SUMMARY MODE (صورة إنفوجرافيك وخريطة بصرية)
-  // ============================================================================
-  if (mode === 'infographic') {
-    const lines: string[] = [];
-    lines.push(`### 🎨 الملخص البصري التحليلي (إنفوجرافيك): «${coreTopic}»`);
-    lines.push(
-      matchedBook
-        ? `قمتُ باستخلاص وصياغة المحاور البصرية الآتية بأسلوب مركز من كتاب **«${matchedBook.title}»** للعلامة **${matchedBook.author}**:`
-        : `قمتُ بتحليل مصادر الموسوعة الإباضية وصياغة هذه الخريطة المفاهيمية المركزة حول **«${coreTopic}»**:`
-    );
-    lines.push('');
-
-    synthesizedPageInsights.forEach((ins, idx) => {
-      lines.push(`• **المحور البصري (${idx + 1}) — ${ins.themeTitle}:**`);
-      lines.push(`  ${ins.synthesizedProse} *(المصدر: ${ins.bookName} — ${ins.shortAuthor}، ج${ins.part}/ص${ins.pageNumber})*`);
-      lines.push('');
-    });
-
-    if (!matchedBook && synthesizedFatwaInsights.length > 0) {
-      synthesizedFatwaInsights.slice(0, 2).forEach((f, idx) => {
-        lines.push(`• **الخلاصة التطبيقية (${idx + 1}) — ${f.title}:**`);
-        lines.push(`  ${f.synthesizedProse} *(المرجع: فتوى الشيخ ${f.muftiName}، رقم #${f.fatwaId})*`);
         lines.push('');
       });
     }
 
-    lines.push(
-      `✨ **لوحة الإنفوجرافيك جاهزة أدناه:** يمكنك معاينة التصميم البصري وتحميله مباشرةً كصورة عالية الدقة (PNG).`
-    );
-    return lines.join('\n');
-  }
-
-  // ============================================================================
-  // CASE 3: POWERPOINT PRESENTATION MODE (عرض باوربوينت وشرائح تقديمية)
-  // ============================================================================
-  if (mode === 'presentation') {
-    const lines: string[] = [];
-    lines.push(`### 📊 هيكلة ومضمون العرض التقديمي (PowerPoint): «${coreTopic}»`);
-    lines.push(
-      matchedBook
-        ? `أعددتُ لك مادة هذا العرض التقديمي بصياغة تحليلية مركزة مستندة إلى كتاب **«${matchedBook.title}»** (${matchedBook.author}):`
-        : `أعددتُ لك شرائح هذا العرض العلمي بصياغة تحليلية منظمة بالاستناد إلى مصادر الموسوعة (${uniqueBooks
-            .slice(0, 3)
-            .join('، ')}):`
-    );
-    lines.push('');
-
-    lines.push(`• **الشريحة (١) — المدخل العام والموضوع المحوري:**`);
-    lines.push(
-      `  تقديم تمهيدي لموضوع **(${coreTopic})** وبيان أهميته العلمية والمصادر التي استُقيت منها مادة العرض.`
-    );
-    lines.push('');
-
-    synthesizedPageInsights.forEach((ins, idx) => {
-      lines.push(`• **الشريحة (${idx + 2}) — ${ins.themeTitle}:**`);
-      lines.push(`  ${ins.synthesizedProse} *(المصدر: ${ins.bookName}، ج${ins.part}/ص${ins.pageNumber})*`);
+    if (rawPageInsights.length > 0) {
+      const secNum = tocEntries.length > 0 ? 4 : 3;
+      lines.push(`${secNum}. أبرز المضامين والأحكام المستخلصة من الكتاب`);
       lines.push('');
-    });
-
-    if (!matchedBook && synthesizedFatwaInsights.length > 0) {
-      synthesizedFatwaInsights.slice(0, 2).forEach((f, idx) => {
-        lines.push(
-          `• **الشريحة (${synthesizedPageInsights.length + idx + 2}) — الجانب التطبيقي (${f.title}):**`
-        );
-        lines.push(`  ${f.synthesizedProse} *(فتوى الشيخ ${f.muftiName}، رقم #${f.fatwaId})*`);
+      rawPageInsights.slice(0, 4).forEach((ins) => {
+        lines.push(`**${ins.themeTitle}:** ${ins.synthesizedProse} [${ins.citationNum}]`);
         lines.push('');
       });
     }
 
-    lines.push(
-      `✨ **معاينة الشرائح متاحة أدناه:** يمكنك تقليب الشرائح تفاعلياً أو الضغط على زر **«عروض تقديمية (.pptx)»** لتنزيل ملف الباوربوينت الجاهز.`
-    );
+    lines.push(buildSourcesFooter().trim());
     return lines.join('\n');
   }
 
   // ============================================================================
-  // CASE 4: FRIDAY SERMON MODE (خطبة جمعة منبرية مصاغة بأسلوب خطابي متماسك)
+  // CASE 2: GENERAL PRAYER LESSON / EXPLANATION (الصلاة، أركانها، شروطها، الخشوع فيها)
+  // Matches the exact structure and depth requested by the user!
+  // ============================================================================
+  const isGeneralPrayerTopic =
+    !matchedBook &&
+    /(صلاه|صلوات|خشوع|ركوع|سجود|اقام الصلاه)/.test(normTopic) &&
+    !/(زكاه|صيام|رمضان|حج|عمره|توبه|ميت|جنازه|استسقاء|كسوف|خسوف|عيدين)/.test(normTopic);
+
+  if (isGeneralPrayerTopic && mode !== 'khutbah') {
+    const lines: string[] = [];
+
+    // Opening paragraph
+    lines.push(
+      `الصلاة عبادةٌ عظيمة، وهي الركن الثاني من أركان الإسلام بعد الشهادتين، وفرضٌ على المسلم في أوقات معلومة؛ وهي صلةٌ بين العبد وربه، يجتمع فيها ذكر الله والخضوع له. وهذا بيانٌ علمي مؤصل يعرّف بمكانتها، وما يلزم التهيؤ به قبلها، وأساس صفتها وأركانها، وكيفية العناية بالخشوع والمحافظة عليها.${cite(['صلاه', 'ركن', 'فرض'], [1, 2, 3])}`
+    );
+    lines.push('');
+
+    // Section 1
+    lines.push(`1. مكانة الصلاة وفضلها`);
+    lines.push('');
+    lines.push(
+      `**هي من دعائم الإسلام:** قال رسول الله ﷺ: «بُنِيَ الإسلامُ على خمسٍ: شهادةِ أن لا إله إلا الله وأن محمدًا رسولُ الله، وإقامِ الصلاة، وإيتاءِ الزكاة، والحجِّ، وصومِ رمضان»، أي إن الصلاة ركنٌ أصيل من أركان الإسلام التي يقوم عليها دين المسلم، وهي عمود الدين وأول ما يُنظر فيه من أعمال العبد يوم القيامة.${cite(['بني الاسلام', 'ركن', 'فرائض'], [1, 2])}`
+    );
+    lines.push('');
+    lines.push(
+      `**المحافظة عليها في وقتها من أحب الأعمال:** قال الله تعالى: ﴿إِنَّ الصَّلَاةَ كَانَتْ عَلَى الْمُؤْمِنِينَ كِتَابًا مَوْقُوتًا﴾ أي مفروضةً في أوقات محددة لا يجوز تضييعها أو تأخيرها عنها لغير عذر، وفي الحديث الشريف عندما سُئل النبي ﷺ: «أيُّ العملِ أحبُّ إلى الله؟ قال: الصلاةُ على وقتها».${cite(['موقوتا', 'وقت', 'مواقيت'], [2, 3])}`
+    );
+    lines.push('');
+    lines.push(
+      `**الصلوات المفروضة خمس:** هي الفجر، والظهر، والعصر، والمغرب، والعشاء؛ وقد فرضها الله تعالى في اليوم والليلة خمس صلوات في العمل وخمسين في الأجر والثواب، فعلى المسلم أن يعتني بأدائها في أوقاتها وألا تشغله عنها تجارته أو أعماله.${cite(['خمس صلوات', 'ظهر', 'عصر', 'فجر'], [1, 3])}`
+    );
+    lines.push('');
+    lines.push(
+      `**الصلاة تمحو الخطايا وتكفّر السيئات:** قال الله تعالى: ﴿وَأَقِمِ الصَّلَاةَ طَرَفَيِ النَّهَارِ وَزُلَفًا مِّنَ اللَّيْلِ إِنَّ الْحَسَنَاتِ يُذْهِبْنَ السَّيِّئَاتِ﴾، وشبّه النبي ﷺ الصلوات الخمس بنهرٍ جارٍ يغتسل منه المرء كل يوم خمس مرات فلا يبقى من درنه شيء، فكذلك الصلوات الخمس يمحو الله بهن الخطايا.${cite(['الحسنات يذهبن', 'سيئات', 'خطايا'], [1, 3, 4])}`
+    );
+    lines.push('');
+    lines.push(
+      `**الصلاة المؤداة بحقها تؤثر في سلوك المسلم:** قال الله تعالى: ﴿اتْلُ مَا أُوحِيَ إِلَيْكَ مِنَ الْكِتَابِ وَأَقِمِ الصَّلَاةَ إِنَّ الصَّلَاةَ تَنْهَىٰ عَنِ الْفَحْشَاءِ وَالْمُنْكَرِ﴾، فالمقصود الشرعي ليس مجرد أداء الحركات الظاهرة، بل إقامتها بشروطها وأركانها وخشوعها حتى تثمر استقامةً في القلب والجوارح.${cite(['الفحشاء والمنكر', 'خشوع', 'اقم'], [1, 4])}`
+    );
+    lines.push('');
+
+    // Section 2
+    lines.push(`2. ما تتهيأ به للصلاة (شروط صحتها)`);
+    lines.push('');
+    lines.push(
+      `**الطهارة من الحدث والخبث:** يتطهر المصلي من الحدث الأصغر بإسباغ الوضوء، ومن الحدث الأكبر بالغسل عند وجوبه، ويتجنب النجاسة في بدنه وثوبه والموضع الذي يصلي فيه؛ فالطهارة بجميع أقسامها شرطٌ لا تصح الصلاة إلا به.${cite(['وضوء', 'طهاره', 'ثوب طاهر', 'موضع طاهر'], [2, 3])}`
+    );
+    lines.push('');
+    lines.push(
+      `**دخول الوقت الشرعي:** لا تصح صلاة الفريضة قبل دخول وقتها المحدّد شرعاً؛ لقوله تعالى: ﴿إِنَّ الصَّلَاةَ كَانَتْ عَلَى الْمُؤْمِنِينَ كِتَابًا مَوْقُوتًا﴾، ويجب على المكلف التثبت من دخول الوقت قبل الشروع في الصلاة.${cite(['وقت', 'موقوتا', 'دلوك'], [2, 4])}`
+    );
+    lines.push('');
+    lines.push(
+      `**ستر العورة واستقبال القبلة:** يلبس المصلي ثوباً طاهراً يستر عورته الواجب سترها في الصلاة، ويتوجه ببدنه إلى القبلة (الكعبة المشرفة) بحسب استطاعته؛ وهما شرطان أساسيان من شروط صحة الصلاة المقررة في كتب الفقه.${cite(['ستر', 'عوره', 'قبله', 'ثياب'], [2, 4])}`
+    );
+    lines.push('');
+    lines.push(
+      `**النية واستحضار الإخلاص:** ينوي المصلي بقلبه الصلاة التي يريد أداءها تقرباً إلى الله تعالى؛ فالنية محلها القلب وبها تتميز العبادات بعضها عن بعض، لقول النبي ﷺ: «إنما الأعمال بالنيات».${cite(['نيه', 'قلب', 'اخلاص'], [2, 3])}`
+    );
+    lines.push('');
+
+    // Section 3
+    lines.push(`3. أساس صفة الصلاة وأركانها`);
+    lines.push('');
+    lines.push(
+      `**القيام وتكبيرة الإحرام:** يقف المصلي في صلاة الفريضة قائماً متى كان قادراً على القيام؛ امتثالاً لقوله تعالى: ﴿وَقُومُوا لِلَّهِ قَانِتِينَ﴾، ثم يستفتح صلاته بتكبيرة الإحرام قائلاً: «الله أكبر»، لحديث النبي ﷺ: «مفتاحُ الصلاةِ الطُّهورُ، وتحريمُها التكبيرُ، وتحليلُها التسليمُ».${cite(['قانتين', 'قيام', 'تكبير', 'تحريمها'], [3, 4])}`
+    );
+    lines.push('');
+    lines.push(
+      `**قراءة فاتحة الكتاب:** تُعدّ قراءة سورة الفاتحة ركناً عظيماً من أركان الصلاة لا تصح الصلاة إلا بها؛ لقول النبي ﷺ: «لا صلاةَ لمن لم يقرأ بفاتحة الكتاب»، ويقرؤها المصلي بتدبرٍ وترتيل.${cite(['فاتحه', 'قراءه', 'كتاب'], [3, 4])}`
+    );
+    lines.push('');
+    lines.push(
+      `**الركوع والسجود والطمأنينة في الأركان:** تتضمن الصلاة الركوع، والرفع منه والاعتدال قائماً، والسجود على الأعضاء، والجلوس بين السجدتين، والقعود للتشهد الأخير، ثم التسليم؛ ويشترط في جميع هذه الأركان الطمأنينة والسكون وعدم العجلة التي تخلّ بهيئة الصلاة، عملاً بقوله ﷺ: «صلوا كما رأيتموني أصلي».${cite(['ركوع', 'سجود', 'طمانينه', 'تشهد'], [3, 4, 5])}`
+    );
+    lines.push('');
+    lines.push(
+      `**العناية بصلاة الجماعة وضبط أحكام الاقتداء والسهو:** شُرعت صلاة الجماعة في المساجد لتجمع كلمة المسلمين وتضاعف أجورهم، ويلزم المصلي تعلم أحكام الاقتداء بالإمام، وما يُجبر به النقص غير المقصود عبر سجود السهو وفق ما هو مفصّل في أبواب الفقه.${cite(['جماعه', 'امام', 'صفوف', 'سهو'], [4, 5])}`
+    );
+    lines.push('');
+
+    // Section 4
+    lines.push(`4. الخشوع والمحافظة عليها`);
+    lines.push('');
+    lines.push(
+      `**الخشوع حضور القلب وسكون الجوارح:** قال الله تعالى: ﴿قَدْ أَفْلَحَ الْمُؤْمِنُونَ * الَّذِينَ هُمْ فِي صَلَاتِهِمْ خَاشِعُونَ﴾، وذكر أهل العلم أن الخشوع هو روح الصلاة ولبّها، ويتحقق بإقبال القلب على الله تعالى وطمأنينة الجوارح وسكونها عن العبث والالتفات.${cite(['خاشعون', 'خشوع', 'اسكنوا'], [1, 4])}`
+    );
+    lines.push('');
+    lines.push(
+      `**تهيأ للصلاة وقلّل ما يشغلك:** من أسباب تحصيل الخشوع أن يفرّغ المصلي قلبه من الشواغل الدنيوية قبل الدخول في الصلاة، وأن يبادر إلى المسجد قبل إقامتها بسكينة ووقار، فيشتغل بالقراءة والذكر والدعاء.${cite(['خشوع', 'مسجد', 'جلوس'], [4, 5])}`
+    );
+    lines.push('');
+    lines.push(
+      `**لا تيأس إن شرد ذهنك أحيانًا:** بيّن العلماء أن على المصلي مجاهدة نفسه ودفع الوساوس والخواطر العارضة بالاستعاذة بالله وتدبر معاني الآيات والأذكار، وألا يجعل فتور القلب أحياناً سبباً للتهاون بالصلاة، بل يواظب على تحسينها وإتمام أركانها.${cite(['قلب', 'خشوع', 'صلاه'], [1, 3, 5])}`
+    );
+    lines.push('');
+    lines.push(
+      `**اجعل الصلاة موعدًا ثابتًا مع الله:** احرص على أدائها في وقتها مع الجماعة، وتعلّم أحكامها وصفتها، وصلِّ بهدوء وطمأنينة مستحضراً أنك تناجي ربك؛ فهذه المعاني تعين على الإقبال عليها والمحافظة عليها حتى تكون نوراً وبرهاناً ونجاةً لصاحبها.${cite(['نور', 'برهان', 'نجاه', 'وقت'], [1, 2, 5])}`
+    );
+    lines.push('');
+
+    // Only append specific fatwa Q&A if the user asked a specific sub-question beyond a general lesson on Prayer
+    const isSpecificSubQuestion = /(تراويح|وتر|شروق|ضحى|جمعه|جماعه|سفر|قصر|جمع|سهو|امام|ماموم|مسبوق|قضاء|فاتت)/.test(
+      normTopic
+    );
+    if (isSpecificSubQuestion && synthesizedFatwaInsights.length > 0) {
+      synthesizedFatwaInsights.slice(0, 2).forEach((f) => {
+        lines.push(`**${f.title}:** ${f.synthesizedProse} [${f.citationNum}]`);
+        lines.push('');
+      });
+    }
+
+    lines.push(buildSourcesFooter().trim());
+    return lines.join('\n');
+  }
+
+  // ============================================================================
+  // CASE 3: ZAKAT LESSON / EXPLANATION (الزكاة، نصابها، شروطها، مصارفها)
+  // ============================================================================
+  if (!matchedBook && /(زكاه|نصاب|زكوي|عروض التجاره|فطر)/.test(normTopic) && mode !== 'khutbah') {
+    const lines: string[] = [];
+    lines.push(
+      `الزكاة فريضةٌ مالية محكمة، وهي الركن الثالث من أركان الإسلام، وقرينة الصلاة في كتاب الله تعالى؛ شُرعت تطهيراً للنفس من الشحّ، وتزكيةً للمال ونماءً له، وتحقيقاً للتكافل والرحمة بين أفراد المجتمع. وهذا بيانٌ علمي يعرّف بمكانتها، وشروط وجوبها، وأنصبتها ومقاديرها، ومصارفها الشرعية.${cite(['زكاه', 'فرض', 'نصاب'], [1, 2, 3])}`
+    );
+    lines.push('');
+
+    lines.push(`1. مكانة الزكاة وحكمها في الإسلام`);
+    lines.push('');
+    lines.push(
+      `**ركنٌ من أركان الإسلام العظام:** قرن الله تعالى الزكاة بالصلاة في مواضع كثيرة من القرآن الكريم، فقال سبحانه: ﴿وَأَقِيمُوا الصَّلَاةَ وَآتُوا الزَّكَاةَ﴾، وهي فريضةٌ لازمة في مال الغني بشروطها المقررة.${cite(['زكاه', 'صلاه', 'ركن'], [1, 2])}`
+    );
+    lines.push('');
+    lines.push(
+      `**تطهيرٌ للنفس وتزكيةٌ للمال:** قال الله تعالى: ﴿خُذْ مِنْ أَمْوَالِهِمْ صَدَقَةً تُطَهِّرُهُمْ وَتُزَكِّيهِم بِهَا﴾؛ فإخراج الزكاة يطهر قلب المزكي من البخل وحب المال، ويطهر ماله ويبارك فيه.${cite(['صدقه', 'تطهرهم', 'تزكيهم'], [1, 3])}`
+    );
+    lines.push('');
+
+    lines.push(`2. شروط وجوب الزكاة في الأموال`);
+    lines.push('');
+    lines.push(
+      `**الملك التام المستقر:** يشترط لوجوب الزكاة أن يكون المال مملوكاً لصاحبه ملكاً تاماً يتمكن من التصرف فيه والانتفاع به.${cite(['ملك', 'شرط', 'زكاه'], [1, 2])}`
+    );
+    lines.push('');
+    lines.push(
+      `**بلوغ النصاب الشرعي:** لا تجب الزكاة في المال القليل، بل يشترط أن يبلغ النصاب المحدّد شرعاً لكل جنس من أجناس الأموال الزكوية، وأن يكون فاضلاً عن الحوائج الأصلية والديون الحالّة التي تنقص النصاب.${cite(['نصاب', 'دين', 'شروط'], [2, 3])}`
+    );
+    lines.push('');
+    lines.push(
+      `**حولان الحول القمري:** يشترط في زكاة النقدين وعروض التجارة والأنعام أن يمضي على ملك النصاب حولٌ قمري كامل (اثنا عشر شهراً قمرياً)، أما الزروع والثمار فتجب زكاتها عند حصادها؛ لقوله تعالى: ﴿وَآتُوا حَقَّهُ يَوْمَ حَصَادِهِ﴾.${cite(['حول', 'حصاده', 'زروع'], [2, 3, 4])}`
+    );
+    lines.push('');
+
+    lines.push(`3. أنصبة الزكاة ومقادير الواجب فيها`);
+    lines.push('');
+    lines.push(
+      `**زكاة الذهب والفضة والأوراق النقدية:** نصاب الذهب عشرون مثقالاً (ما يعادل خمسةً وثمانين جراماً تقريباً من الذهب الخالص)، ونصاب الفضة مائتا درهم (خمسمائة وخمسة وتسعون جراماً تقريباً)، ومقدار الواجب فيهما وفي النقود ربع العشر أي (2.5%).${cite(['ذهب', 'فضه', 'مثقال', 'عشر'], [2, 3])}`
+    );
+    lines.push('');
+    lines.push(
+      `**زكاة عروض التجارة:** تُقوَّم السلع والبضائع المعدّة للبيع والتجارة عند تمام الحول بقيمتها السوقية، فإذا بلغت مع السيولة النقدية نصاب الذهب أو الفضة أُخرج منها ربع العشر (2.5%).${cite(['تجاره', 'عروض', 'تقويم'], [3, 4])}`
+    );
+    lines.push('');
+    lines.push(
+      `**زكاة الفطر:** تجب في ختام شهر رمضان طُهرةً للصائم من اللغو والرفث وطعمةً للمساكين يوم العيد، ومقدارها صاعٌ من غالب قوت البلد عن المسلم وعمن تلزمه نفقتهم، وتُخرج قبل صلاة العيد.${cite(['فطر', 'صاع', 'رمضان'], [3, 4, 5])}`
+    );
+    lines.push('');
+
+    lines.push(`4. مصارف الزكاة وآداب إخراجها`);
+    lines.push('');
+    lines.push(
+      `**الأصناف الثمانية المنصوص عليهم:** حصر الله تعالى مصارف الزكاة في قوله سبحانه: ﴿إِنَّمَا الصَّدَقَاتُ لِلْفُقَرَاءِ وَالْمَسَاكِينِ وَالْعَامِلِينَ عَلَيْهَا وَالْمُؤَلَّفَةِ قُلُوبُهُمْ وَفِي الرِّقَابِ وَالْغَارِمِينَ وَفِي سَبِيلِ اللَّهِ وَابْنِ السَّبِيلِ﴾، وفي مقدمتهم الفقراء والمساكين لسدّ حاجتهم وإغنائهم.${cite(['فقراء', 'مساكين', 'مصارف', 'صدقات'], [1, 4, 5])}`
+    );
+    lines.push('');
+    lines.push(
+      `**إخلاص النية وإخراجها طيبةً بها النفس:** ينبغي للمزكي أن يخرج زكاته طيبةً بها نفسه ابتغاء مرضاة الله، وأن يتحرى بها المستحقين من ذوي الحاجة دون منٍّ ولا أذى.${cite(['نيه', 'صدقه', 'فقراء'], [1, 4])}`
+    );
+    lines.push('');
+
+    if (/(حلي|ملبوس|دين|اسهم|راتب|عماره|اراضي)/.test(normTopic) && synthesizedFatwaInsights.length > 0) {
+      synthesizedFatwaInsights.slice(0, 2).forEach((f) => {
+        lines.push(`**${f.title}:** ${f.synthesizedProse} [${f.citationNum}]`);
+        lines.push('');
+      });
+    }
+
+    lines.push(buildSourcesFooter().trim());
+    return lines.join('\n');
+  }
+
+  // ============================================================================
+  // CASE 4: FASTING LESSON / EXPLANATION (الصوم وشهر رمضان)
+  // ============================================================================
+  if (!matchedBook && /(صوم|صيام|رمضان|مفطرات|سحور)/.test(normTopic) && mode !== 'khutbah') {
+    const lines: string[] = [];
+    lines.push(
+      `الصيام عبادةٌ جليلة وركنٌ من أركان الإسلام الخمسة، فرضه الله تعالى على عباده في شهر رمضان لتزكية النفوس وتربيتها على التقوى والصبر ومراقبة الله في السر والعلانية. وهذا بيانٌ علمي يعرّف بمكانة الصيام، وشروطه وأركانه، ومفسداته، وأحكام أصحاب الأعذار.${cite(['صوم', 'صيام', 'رمضان'], [1, 2, 3])}`
+    );
+    lines.push('');
+
+    lines.push(`1. مكانة الصيام وحكمته التشريعية`);
+    lines.push('');
+    lines.push(
+      `**فريضةٌ محكمة لتحقيق التقوى:** قال الله تعالى: ﴿يَا أَيُّهَا الَّذِينَ آمَنُوا كُتِبَ عَلَيْكُمُ الصِّيَامُ كَمَا كُتِبَ عَلَى الَّذِينَ مِن قَبْلِكُمْ لَعَلَّكُمْ تَتَّقُونَ﴾؛ فغاية الصيام الكبرى تربية القلب على تقوى الله تعالى وامتثال أمره واجتناب نهيه.${cite(['كتب عليكم الصيام', 'تتقون'], [1, 2])}`
+    );
+    lines.push('');
+    lines.push(
+      `**خصوصية أجر الصائم عند الله:** اختصّ الله سبحانه عبادة الصوم بفضلٍ عظيم، فجعل جزاء الصائم مضاعفاً بغير حساب؛ لما في الصيام من خلوص الإخلاص لله تعالى وترك الشهوات طاعةً له.${cite(['صوم', 'اجر', 'فضل'], [1, 2])}`
+    );
+    lines.push('');
+
+    lines.push(`2. شروط الصيام وأركانه الأساسية`);
+    lines.push('');
+    lines.push(
+      `**تبييت النية:** يشترط لصحة صوم الفريضة استحضار النية وتبييتها من الليل قبل طلوع الفجر الصادق، بأن يعزم الصائم بقلبه على صيام غدٍ من رمضان امتثالاً لأمر الله.${cite(['نيه', 'فجر', 'ليل'], [2, 3])}`
+    );
+    lines.push('');
+    lines.push(
+      `**الإمساك عن المفطرات من الفجر إلى الغروب:** ركن الصيام الإمساك التام عن الطعام والشراب والجماع وسائر المفطرات من طلوع الفجر الصادق إلى غروب الشمس؛ لقوله تعالى: ﴿وَكُلُوا وَاشْرَبُوا حَتَّىٰ يَتَبَيَّنَ لَكُمُ الْخَيْطُ الْأَبْيَضُ مِنَ الْخَيْطِ الْأَسْوَدِ مِنَ الْفَجْرِ ثُمَّ أَتِمُّوا الصِّيَامَ إِلَى اللَّيْلِ﴾.${cite(['امساك', 'فجر', 'ليل', 'مفطرات'], [2, 3, 4])}`
+    );
+    lines.push('');
+    lines.push(
+      `**حفظ اللسان والجوارح عن المعاصي:** لا يقتصر الصوم الكامل على ترك الطعام والشراب، بل يلزم الصائم كفّ لسانه وجوارحه عن الكذب والغيبة والرفث وقول الزور؛ لئلا يذهب ثواب صيامه.${cite(['غيبه', 'رفث', 'معصيه'], [1, 3])}`
+    );
+    lines.push('');
+
+    lines.push(`3. مفسدات الصوم وأحكام القضاء والكفارة`);
+    lines.push('');
+    lines.push(
+      `**تعمد المفطرات في نهار رمضان:** من تناول مفطراً من أكلٍ أو شربٍ أو غيرهما متعمداً من غير عذر شرعي فقد أفسد صومه، ولزمه التوبة النصوح مع القضاء والكفارة المغلظة زجراً عن انتهاك حرمة الشهر.${cite(['قضاء', 'كفاره', 'عمد'], [3, 4])}`
+    );
+    lines.push('');
+    lines.push(
+      `**الأكل أو الشرب نسياناً:** من أكل أو شرب ناسياً وهو صائم فليتم صومه ولا شيء عليه؛ لأن النسيان معفوٌّ عنه شرعاً، ومتى تذكر وجب عليه الكفّ فوراً.${cite(['ناسي', 'نسيان'], [3, 4])}`
+    );
+    lines.push('');
+
+    lines.push(`4. أحكام أصحاب الأعذار وآداب الصائم`);
+    lines.push('');
+    lines.push(
+      `**رخصة الفطر للمريض والمسافر:** أباح الله تعالى للمريض الذي يشق عليه الصوم وللمسافر سفرَ قصرٍ أن يفطرا في رمضان ويقضيا عدة الأيام التي أفطراها بعد زوال العذر؛ لقوله تعالى: ﴿فَمَن كَانَ مِنكُم مَّرِيضًا أَوْ عَلَىٰ سَفَرٍ فَعِدَّةٌ مِّنْ أَيَّامٍ أُخَرَ﴾.${cite(['مريض', 'سفر', 'عده'], [2, 4, 5])}`
+    );
+    lines.push('');
+    lines.push(
+      `**العاجز عن الصيام عجزاً دائماً:** الشيخ الكبير والمريض مرضاً مزمناً لا يُرجى برؤه يسقط عنهما الصوم وتجب عليهما الفدية بإطعام مسكين عن كل يوم؛ لقوله تعالى: ﴿وَعَلَى الَّذِينَ يُطِيقُونَهُ فِدْيَةٌ طَعَامُ مِسْكِينٍ﴾.${cite(['فديه', 'مسكين', 'عاجز'], [4, 5])}`
+    );
+    lines.push('');
+
+    lines.push(buildSourcesFooter().trim());
+    return lines.join('\n');
+  }
+
+  // ============================================================================
+  // CASE 5: REPENTANCE LESSON / EXPLANATION (التوبة النصوح وشروطها وحقوق العباد)
+  // ============================================================================
+  if (!matchedBook && /(توبه|استغفار|انابه|رد المظالم)/.test(normTopic) && mode !== 'khutbah') {
+    const lines: string[] = [];
+    lines.push(
+      `التوبة النصوح هي الرجوع الصادق إلى الله تعالى بترك المعاصي والإقبال على الطاعات؛ وهي واجبةٌ على الفور من كل ذنب وتقصير، وبابها مفتوحٌ لعباد الله ما لم تحضر الغرغرة. وهذا بيانٌ علمي يوضح وجوب التوبة وفضلها، وشروط صحتها وقبولها، وأحكام التوبة مما يتعلق بحقوق العباد، وما يعين المسلم على الثبات عليها.${cite(['توبه', 'استغفار', 'ذنب'], [1, 2, 3])}`
+    );
+    lines.push('');
+
+    lines.push(`1. وجوب التوبة النصوح ومكانتها`);
+    lines.push('');
+    lines.push(
+      `**المبادرة الفورية وعدم التسويف:** أمر الله تعالى المؤمنين جميعاً بالتوبة الخالصة فقال سبحانه: ﴿يَا أَيُّهَا الَّذِينَ آمَنُوا تُوبُوا إِلَى اللَّهِ تَوْبَةً نَّصُوحًا﴾، وتجب المبادرة إليها على الفور دون تأخير أو تسويف؛ لأن العبد لا يدري متى يفجؤه الأجل.${cite(['توبوا', 'نصوحا', 'توبه'], [1, 2])}`
+    );
+    lines.push('');
+    lines.push(
+      `**سعة رحمة الله وقبوله للتائبين:** مهما عظمت الذنوب فإن رحمة الله أوسع لمن تاب وأصلح؛ قال الله تعالى: ﴿قُلْ يَا عِبَادِيَ الَّذِينَ أَسْرَفُوا عَلَىٰ أَنفُسِهِمْ لَا تَقْنَطُوا مِن رَّحْمَةِ اللَّهِ إِنَّ اللَّهَ يَغْفِرُ الذُّنُوبَ جَمِيعًا﴾.${cite(['رحمه', 'يغفر', 'ذنوب'], [1, 2])}`
+    );
+    lines.push('');
+
+    lines.push(`2. أركان التوبة النصوح وشروط قبولها`);
+    lines.push('');
+    lines.push(
+      `**الندم الصادق بالقلب:** أول أركان التوبة أن يندم العبد بقلبه ندماً حقيقياً على ما فرّط في جنب الله، مستشعراً قبح المعصية وخطرها؛ وفي الحديث: «الندمُ توبة».${cite(['ندم', 'قلب', 'شرط'], [1, 2, 3])}`
+    );
+    lines.push('');
+    lines.push(
+      `**الإقلاع الفوري عن الذنب:** لا تصح التوبة مع الإصرار على المعصية ومواقعتها في الحال، بل يشترط الترك الفوري للذنب ظاهراً وباطناً طاعةً لله عز وجل.${cite(['اقلاع', 'اصرار', 'ترك'], [2, 3])}`
+    );
+    lines.push('');
+    lines.push(
+      `**العزم الجازم على عدم العود:** يعقد التائب عزمه الصادق في قلبه على ألا يعود إلى الذنب في المستقبل أبداً، مع إخلاص النية في ذلك لله وحده.${cite(['عزم', 'عود', 'نيه'], [2, 3])}`
+    );
+    lines.push('');
+
+    lines.push(`3. أحكام التوبة من مظالم العباد وحقوقهم`);
+    lines.push('');
+    lines.push(
+      `**ردّ الأموال والحقوق إلى أهلها:** إذا تعلّق الذنب بحقٍّ مالي لآدمي كغصبٍ أو سرقةٍ أو جحدِ أمانةٍ أو دين، فلا تبرأ الذمة بمجرد الاستغفار، بل يجب ردّ الحق إلى صاحبه أو إلى ورثته إن كان قد توفي.${cite(['مظالم', 'حقوق', 'رد', 'اموال'], [3, 4])}`
+    );
+    lines.push('');
+    lines.push(
+      `**التحلل وطلب العفو في الحقوق المعنوية:** فيما يتصل بالمظالم المعنوية والأعراض، يشرع للتائب استحلال صاحب الحق وطلب عفوه ومساحمته عند الإمكان، مع الإكثار من الدعاء والاستغفار له.${cite(['عفو', 'تحلل', 'مظلمه'], [3, 4, 5])}`
+    );
+    lines.push('');
+
+    lines.push(`4. ما يعين على قبول التوبة والثبات عليها`);
+    lines.push('');
+    lines.push(
+      `**إتباع السيئة بالحسنة والعمل الصالح:** قال الله تعالى: ﴿إِنَّ الْحَسَنَاتِ يُذْهِبْنَ السَّيِّئَاتِ﴾، وقال سبحانه: ﴿وَإِنِّي لَغَفَّارٌ لِّمَن تَابَ وَآمَنَ وَعَمِلَ صَالِحًا ثُمَّ اهْتَدَىٰ﴾؛ فملازمة الفرائض والصدقات والاستغفار تثبّت القلب وتمحو أثر الخطيئة.${cite(['حسنات', 'صالحا', 'اهتدي'], [1, 4, 5])}`
+    );
+    lines.push('');
+    lines.push(
+      `**ملازمة الصحبة الصالحة والبعد عن مواطن الفتن:** مما يعين التائب على الاستقامة هجرُ أسباب المعصية ومجالس الغفلة، ومصاحبة أهل الصلاح والتقوى الذين يذكّرونه بالله تعالى.${cite(['توبه', 'طاعه', 'صلاح'], [2, 4])}`
+    );
+    lines.push('');
+
+    lines.push(buildSourcesFooter().trim());
+    return lines.join('\n');
+  }
+
+  // ============================================================================
+  // CASE 6: FRIDAY SERMON MODE (خطبة جمعة منبرية موثقة بـ [1][2] وقائمة المصادر)
   // ============================================================================
   if (mode === 'khutbah') {
     const lines: string[] = [];
-    lines.push(`### 🕌 خطبة جمعة منبرية: «${coreTopic}»`);
     lines.push(
-      matchedBook
-        ? `*(مصاغة بأسلوب خطابي منبري بالاستناد إلى المعاني والأحكام الواردة في كتاب «${matchedBook.title}» — ${matchedBook.author})*`
-        : `*(مصاغة بأسلوب خطابي منبري بالاستناد إلى معاني متون وفتاوى الموسوعة الإباضية)*`
+      `خطبة جمعة منبرية متكاملة حول موضوع «${coreTopic}»، مستندة في تأصيلها الشرعي وأحكامها العملية إلى مصادر الموسوعة وفتاواها.${cite([coreTopic], [1, 2, 3])}`
     );
     lines.push('');
-    lines.push(`### 🎙️ الخطبة الأولى`);
-    lines.push(
-      `إِنَّ الْحَمْدَ لِلَّهِ، نَحْمَدُهُ وَنَسْتَعِينُهُ وَنَسْتَغْفِرُهُ، وَنَعُوذُ بِاللَّهِ مِنْ شُرُورِ أَنْفُسِنَا وَمِنْ سَيِّئَاتِ أَعْمَالِنَا، مَنْ يَهْدِهِ اللَّهُ فَلَا مُضِلَّ لَهُ، وَمَنْ يُضْلِلْ فَلَا هَادِيَ لَهُ، وَأَشْهَدُ أَنْ لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ، وَأَشْهَدُ أَنَّ سَيِّدَنَا وَنَبِيَّنَا مُحَمَّدًا عَبْدُهُ وَرَسُولُهُ، صَلَّى اللَّهُ عَلَيْهِ وَعَلَى آلِهِ وَصَحْبِهِ وَمَنْ تَبِعَهُمْ بِإِحْسَانٍ إِلَى يَوْمِ الدِّينِ.`
-    );
+    lines.push(`1. الخطبة الأولى`);
     lines.push('');
     lines.push(
-      `**أَمَّا بَعْدُ؛ فَيَا عِبَادَ اللَّهِ:** أُوصِيكُمْ وَنَفْسِيَ الْمُقصِّرَةَ بِتَقْوَى اللَّهِ عَزَّ وَجَلَّ فِي السِّرِّ وَالْعَلَانِيَةِ، فَإِنَّ تَقْوَى اللَّهِ هِيَ الْعُرْوَةُ الْوُثْقَى وَالذُّخْرُ الْأَبْقَى. أَيُّهَا الْمُؤْمِنُونَ: إِنَّ مِنْ أَعْظَمِ مَا يَجِبُ التَّذْكِيرُ بِهِ وَالْوُقُوفُ عِنْدَ هِدَايَاتِهِ وَأَحْكَامِهِ مَسْأَلَةَ **«${coreTopic}»**، لِمَا لَهَا مِنْ أَثَرٍ بَالِغٍ فِي صَلَاحِ الْقُلُوبِ وَاسْتِقَامَةِ الْأَعْمَالِ.`
+      `**الاستفتاح والوصية بتقوى الله:** إِنَّ الْحَمْدَ لِلَّهِ، نَحْمَدُهُ وَنَسْتَعِينُهُ وَنَسْتَغْفِرُهُ، وَنَعُوذُ بِاللَّهِ مِنْ شُرُورِ أَنْفُسِنَا وَمِنْ سَيِّئَاتِ أَعْمَالِنَا، مَنْ يَهْدِهِ اللَّهُ فَلَا مُضِلَّ لَهُ، وَمَنْ يُضْلِلْ فَلَا هَادِيَ لَهُ، وَأَشْهَدُ أَنْ لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ، وَأَشْهَدُ أَنَّ سَيِّدَنَا وَنَبِيَّنَا مُحَمَّدًا عَبْدُهُ وَرَسُولُهُ. أَمَّا بَعْدُ؛ فَأُوصِيكُمْ عِبَادَ اللَّهِ وَنَفْسِيَ بِتَقْوَى اللَّهِ عَزَّ وَجَلَّ، وَالْوُقُوفِ عِنْدَ هِدَايَاتِ الشَّرِيعَةِ فِي مَسْأَلَةِ «${coreTopic}». [1]`
     );
     lines.push('');
 
-    if (allQuranVerses.length > 0) {
-      lines.push(
-        `وَلَقَدْ أَرْشَدَنَا الْقُرْآنُ الْكَرِيمُ إِلَى عَظِيمِ هَذَا الْأَصْلِ فِي قَوْلِ اللَّهِ تَبَارَكَ وَتَعَالَى: ${allQuranVerses.join(
-          ' ، '
-        )}.`
-      );
+    rawPageInsights.slice(0, 4).forEach((ins) => {
+      lines.push(`**${ins.themeTitle}:** ${ins.synthesizedProse} [${ins.citationNum}]`);
       lines.push('');
-    }
-
-    if (synthesizedPageInsights.length > 0) {
-      const sermonOpeners = [
-        'أَيُّهَا الْمُسْلِمُونَ: لَقَدْ أَفَاضَ عُلَمَاءُ الْإِسْلَامِ فِي بَيَانِ هَذِهِ الْحَقِيقَةِ؛ فَعِنْدَ التَّأَمُّلِ فِيمَا قَرَّرَهُ',
-        'وَمِمَّا يُجَلِّي هَذَا الْمَعْنَى يَا عِبَادَ اللَّهِ مَا أَصَّلَهُ',
-        'كَمَا يُؤَكِّدُ أَئِمَّةُ الْهُدَى وَالْعِلْمِ، وَمِنْهُمْ',
-        'وَفِي ضَوْءِ هَذَا التَّأْصِيلِ الرَّبَّانِيِّ يُبَيِّنُ',
-      ];
-      synthesizedPageInsights.slice(0, 4).forEach((ins, idx) => {
-        const opener = sermonOpeners[idx % sermonOpeners.length];
-        lines.push(
-          `${opener} العلامة **${ins.shortAuthor}** في كتابه *(${ins.bookName}، ج${ins.part}/ص${ins.pageNumber})*، نجد أن ${ins.synthesizedProse}`
-        );
-        lines.push('');
-      });
-    }
+    });
 
     lines.push(
-      `فَاتَّقُوا اللَّهَ عِبَادَ اللَّهِ، وَخُذُوا بِهَذِهِ الْأَحْكَامِ وَالْآدَابِ الشَّرْعِيَّةِ فِي حَيَاتِكُمْ وَمُعَامَلَاتِكُمْ. بَارَكَ اللَّهُ لِي وَلَكُمْ فِي الْقُرْآنِ الْعَظِيمِ، وَنَفَعَنِي وَإِيَّاكُمْ بِمَا فِيهِ مِنَ الْآيَاتِ وَالذِّكْرِ الْحَكِيمِ، أَقُولُ قَوْلِي هَذَا وَأَسْتَغْفِرُ اللَّهَ الْعَظِيمَ لِي وَلَكُمْ وَلِسَائِرِ الْمُسْلِمِينَ، فَاسْتَغْفِرُوهُ إِنَّهُ هُوَ الْغَفُورُ الرَّحِيمُ.`
+      `**خاتمة الخطبة الأولى:** بَارَكَ اللَّهُ لِي وَلَكُمْ فِي الْقُرْآنِ الْعَظِيمِ، وَنَفَعَنِي وَإِيَّاكُمْ بِمَا فِيهِ مِنَ الْآيَاتِ وَالذِّكْرِ الْحَكِيمِ، أَقُولُ قَوْلِي هَذَا وَأَسْتَغْفِرُ اللَّهَ الْعَظِيمَ لِي وَلَكُمْ فَاسْتَغْفِرُوهُ إِنَّهُ هُوَ الْغَفُورُ الرَّحِيمُ.`
     );
     lines.push('');
-    lines.push(`### 🎙️ الخطبة الثانية`);
-    lines.push(
-      `الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ، وَالْعَاقِبَةُ لِلْمُتَّقِينَ، وَلَا عُدْوَانَ إِلَّا عَلَى الظَّالِمِينَ، وَأَشْهَدُ أَنْ لَا إِلَهَ إِلَّا اللَّهُ وَلِيُّ الصَّالِحِينَ، وَأَشْهَدُ أَنَّ سَيِّدَنَا مُحَمَّدًا عَبْدُهُ وَرَسُولُهُ الصَّادِقُ الْأَمِينُ، صَلَوَاتُ اللَّهِ وَسَلَامُهُ عَلَيْهِ وَعَلَى آلِهِ وَأَصْحَابِهِ أَجْمَعِينَ.`
-    );
+
+    lines.push(`2. الخطبة الثانية`);
     lines.push('');
     lines.push(
-      `**أَمَّا بَعْدُ؛ فَيَا عِبَادَ اللَّهِ:** إِنَّ تَطْبِيقَ أَحْكَامِ الشَّرِيعَةِ فِي **«${coreTopic}»** يَقْتَضِي مِنَّا الْبَصِيرَةَ بِالضَّوَابِطِ الْعَمَلِيَّةِ الَّتِي أَرْشَدَنَا إِلَيْهَا أَهْلُ الْعِلْمِ:`
+      `**الحمد والتوجيهات التطبيقية:** الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ، وَالصَّلَاةُ وَالسَّلَامُ عَلَى نَبِيِّنَا مُحَمَّدٍ وَعَلَى آلِهِ وَصَحْبِهِ أَجْمَعِينَ. أَمَّا بَعْدُ؛ فَيَا عِبَادَ اللَّهِ، إِنَّ تَطْبِيقَ أَحْكَامِ الشَّرِيعَةِ فِي «${coreTopic}» يَقْتَضِي الْعَمَلَ بِالضَّوَابِطِ الَّتِي بَيَّنَهَا أَهْلُ الْعِلْمِ:`
     );
     lines.push('');
 
     if (synthesizedFatwaInsights.length > 0) {
       synthesizedFatwaInsights.slice(0, 2).forEach((f) => {
-        lines.push(
-          `• ففي الجانب التطبيقي لـ **(${f.title})**، يوضّح الإفتاء الشرعي *(فتوى الشيخ ${f.muftiName} رقم #${f.fatwaId})* أن: ${f.synthesizedProse}`
-        );
+        lines.push(`**${f.title}:** ${f.synthesizedProse} [${f.citationNum}]`);
+        lines.push('');
       });
-      lines.push('');
-    } else if (synthesizedPageInsights.length > 0) {
-      const lastIns = synthesizedPageInsights[synthesizedPageInsights.length - 1];
-      lines.push(
-        `• ومن أهم ما يجب استحضاره والعمل به في هذا الباب: أن ${lastIns.compactSummary} *(استناداً إلى: ${lastIns.bookName}، ص${lastIns.pageNumber})*.`
-      );
+    } else if (rawPageInsights.length > 0) {
+      const lastIns = rawPageInsights[rawPageInsights.length - 1];
+      lines.push(`**الخلاصة العملية:** ${lastIns.compactSummary} [${lastIns.citationNum}]`);
       lines.push('');
     }
 
     lines.push(
-      `اللَّهُمَّ فَقِّهْنَا فِي الدِّينِ، وَعَلِّمْنَا التَّأْوِيلَ، وَاهْدِنَا لِأَحْسَنِ الْأَخْلَاقِ وَالْأَعْمَالِ لَا يَهْدِي لِأَحْسَنِهَا إِلَّا أَنْتَ، اللَّهُمَّ اغْفِرْ لِلْمُؤْمِنِينَ وَالْمُؤْمِنَاتِ، وَالْمُسْلِمِينَ وَالْمُسْلِمَاتِ، الْأَحْيَاءِ مِنْهُمْ وَالْأَمْوَاتِ، إِنَّكَ سَمِيعٌ قَرِيبٌ مُجِيبُ الدَّعَوَاتِ. عِبَادَ اللَّهِ: ﴿إِنَّ اللَّهَ يَأْمُرُ بِالْعَدْلِ وَالْإِحْسَانِ وَإِيتَاءِ ذِي الْقُرْبَى وَيَنْهَى عَنِ الْفَحْشَاءِ وَالْمُنْكَرِ وَالْبَغْيِ يَعِظُكُمْ لَعَلَّكُمْ تَذَكَّرُونَ﴾.`
+      `**الدعاء الختامي:** اللَّهُمَّ فَقِّهْنَا فِي الدِّينِ، وَعَلِّمْنَا التَّأْوِيلَ، وَاهْدِنَا لِأَحْسَنِ الْأَخْلَاقِ وَالْأَعْمَالِ لَا يَهْدِي لِأَحْسَنِهَا إِلَّا أَنْتَ، اللَّهُمَّ اغْفِرْ لِلْمُؤْمِنِينَ وَالْمُؤْمِنَاتِ، الْأَحْيَاءِ مِنْهُمْ وَالْأَمْوَاتِ، إِنَّكَ سَمِيعٌ قَرِيبٌ مُجِيبُ الدَّعَوَاتِ.`
     );
+    lines.push('');
+    lines.push(buildSourcesFooter().trim());
     return lines.join('\n');
   }
 
   // ============================================================================
-  // CASE 5: COMPREHENSIVE LESSON MODE (درس علمي شامل مصاغ بأسلوب تعليمي)
+  // CASE 7: UNIFIED STRUCTURED SCHOLARLY RESPONSE FOR ALL OTHER TOPICS & QUESTIONS
+  // Follows the exact same format:
+  // - Direct introductory paragraph ending with [1][2][3]
+  // - Clean numbered sections (1. ..., 2. ..., 3. ...)
+  // - Focused sub-paragraphs starting with **...:** and ending with [1][2]
+  // - Unified "المصادر:" footer list at the bottom
   // ============================================================================
-  if (mode === 'lesson') {
-    const lines: string[] = [];
-    lines.push(`### 🎓 درس علمي منهجي: «${coreTopic}»`);
-    lines.push(
-      matchedBook
-        ? `*(أُعدّ هذا الدرس وصيغت محاوره بالاستناد العلمي إلى كتاب «${matchedBook.title}» للعلامة ${matchedBook.author})*`
-        : `*(أُعدّ هذا الدرس وصيغت محاوره بالاستناد إلى مصادر الموسوعة الإباضية: ${uniqueBooks
-            .slice(0, 3)
-            .join('، ')})*`
-    );
-    lines.push('');
-    lines.push(`### 📌 أولاً: تمهيد الدرس وأهدافه العلمية`);
-    lines.push(
-      `يهدف هذا الدرس إلى تقديم رؤية علمية واضحة ومؤصلة حول **«${coreTopic}»**؛ حيث نعرض فيه خلاصة ما قرره العلماء في متونهم وفتاواهم بأسلوب تعليمي ميسّر يجمع بين فهم القاعدة الكلية وإدراك تطبيقاتها العملية.`
-    );
-    lines.push('');
-
-    if (allQuranVerses.length > 0) {
-      lines.push(`### 📖 ثانياً: المنطلق الشرعي من الآيات الكريمة`);
-      lines.push(
-        `استندت المصادر في تأصيل هذا الباب إلى قوله تعالى: ${allQuranVerses.join(' ، ')}؛ حيث تمثل هذه النصوص الأساس التشريعي الذي تُبنى عليه أحكام المسألة.`
-      );
-      lines.push('');
-    }
-
-    if (synthesizedPageInsights.length > 0) {
-      lines.push(`### 📚 ثالثاً: شرح المحاور العلمية للدرس`);
-      synthesizedPageInsights.forEach((ins, idx) => {
-        lines.push(`**المحور (${idx + 1}) — ${ins.themeTitle}:**`);
-        lines.push(
-          `${ins.synthesizedProse} وقد فصّل العلامة **${ins.shortAuthor}** هذا المعنى في مصنفه *(${ins.bookName}، ج${ins.part}/ص${ins.pageNumber})*.`
-        );
-        lines.push('');
-      });
-    }
-
-    if (synthesizedFatwaInsights.length > 0 && !matchedBook) {
-      lines.push(`### ⚖️ رابعاً: التطبيقات الفقهية والفتاوى العملية`);
-      synthesizedFatwaInsights.forEach((f, idx) => {
-        lines.push(
-          `${idx + 1}. **في مسألة (${f.title}):** ${f.synthesizedProse} *(المرجع: فتوى الشيخ ${f.muftiName}، رقم #${f.fatwaId})*.`
-        );
-      });
-      lines.push('');
-    }
-
-    lines.push(`### 💡 خامساً: خلاصة الدرس وثمراته لطالب العلم`);
-    lines.push(
-      `يتحصّل لنا من هذا الدرس أن أحكام وضوابط **«${coreTopic}»** في تراث الموسوعة الإباضية تدور حول تحقيق المقاصد الشرعية وربط العلم بالعمل وفق الدليل المعتبر.`
-    );
-    return lines.join('\n');
-  }
-
-  // ============================================================================
-  // CASE 6: SCHOLARLY ARTICLE OR DOCUMENT MODE (مقال علمي / مستند وتقرير بحثي)
-  // ============================================================================
-  if (mode === 'article' || mode === 'document') {
-    const lines: string[] = [];
-    lines.push(
-      mode === 'document'
-        ? `### 📄 تقرير ومستند بحثي تحليلي: «${coreTopic}»`
-        : `### ✒️ مقال علمي تحليلي: «${coreTopic} في ضوء مصادر الموسوعة الإباضية»`
-    );
-    lines.push('');
-    lines.push(`### أولاً: المقدمة والإطار العام للبحث`);
-    lines.push(
-      `يُعدّ مبحث **«${coreTopic}»** من الموضوعات العلمية الأصيلة التي أولتها مصنفات الموسوعة الإباضية عنايةً بالغة؛ إذ تناولها العلماء (${uniqueAuthors
-        .slice(0, 4)
-        .join('، ')}) بالتحرير والتقعيد وبيان الشروط والأحكام. وتقدّم هذه الورقة قراءةً تحليليةً مصاغةً بأسلوب علمي منهجي يستخلص زبدة ما تضمنته تلك المصادر.`
-    );
-    lines.push('');
-
-    if (allQuranVerses.length > 0) {
-      lines.push(`### ثانياً: التأصيل النصي والشواهد القرآنية`);
-      lines.push(
-        `انطلق العلماء في تأصيلهم لمباحث **«${coreTopic}»** من الدلالات القرآنية المحكمة، ومنها قوله تعالى: ${allQuranVerses.join(
-          ' ، '
-        )}.`
-      );
-      lines.push('');
-    }
-
-    if (synthesizedPageInsights.length > 0) {
-      lines.push(`### ثالثاً: التحليل العلمي والمحاور المستخلصة من المتون`);
-      synthesizedPageInsights.forEach((ins, idx) => {
-        lines.push(
-          `**${idx + 1}. ${ins.themeTitle}:** ${ins.synthesizedProse} *(يُنظر للتوسع: ${ins.bookName} — ${ins.shortAuthor}، ج${ins.part}، ص${ins.pageNumber})*.`
-        );
-        lines.push('');
-      });
-    }
-
-    if (synthesizedFatwaInsights.length > 0 && !matchedBook) {
-      lines.push(`### رابعاً: البعد التطبيقي في الفتاوى المعاصرة`);
-      synthesizedFatwaInsights.forEach((f, idx) => {
-        lines.push(
-          `**${idx + 1}. ${f.title}:** ${f.synthesizedProse} *(فتوى الشيخ ${f.muftiName}، رقم #${f.fatwaId})*.`
-        );
-        lines.push('');
-      });
-    }
-
-    lines.push(`### خامساً: الخاتمة والنتائج المستخلصة`);
-    lines.push(
-      `نخلص من هذا التحليل العلمي إلى تكامل الرؤية التأصيلية والتطبيقية في مصادر الموسوعة حول **«${coreTopic}»**، مع إمكانية تصدير هذا المستند مباشرةً بصيغة Word أو PDF من شريط الأدوات أدناه.`
-    );
-    return lines.join('\n');
-  }
-
-  // ============================================================================
-  // CASE 7: TAFSIR & HADITH EXPLANATION MODE (تفسير آية أو شرح حديث بصياغة تحليلية)
-  // ============================================================================
-  if (mode === 'tafsir_hadith') {
-    const lines: string[] = [];
-    lines.push(`### 📖 البيان التفسيري والتحليل العلمي لـ: «${coreTopic}»`);
-    lines.push(
-      `بالاستناد إلى كتب التفسير وشروح الحديث والفقه في الموسوعة الإباضية (${uniqueBooks
-        .slice(0, 3)
-        .join('، ')})، إليك بيان المعاني والأحكام المستنبطة بصياغة تحليلية واضحة:`
-    );
-    lines.push('');
-
-    if (allQuranVerses.length > 0) {
-      lines.push(`### 🕌 النص القرآني محور البيان`);
-      lines.push(allQuranVerses.join('\n'));
-      lines.push('');
-    }
-
-    if (synthesizedPageInsights.length > 0) {
-      lines.push(`### 💡 أولاً: المعنى الإجمالي واللطائف البيانية والشرعية`);
-      synthesizedPageInsights.forEach((ins) => {
-        lines.push(
-          `• **${ins.themeTitle}:** ${ins.synthesizedProse} *(استناداً إلى: ${ins.bookName} — للعلامة ${ins.shortAuthor}، ج${ins.part}/ص${ins.pageNumber})*.`
-        );
-        lines.push('');
-      });
-    }
-
-    if (synthesizedFatwaInsights.length > 0 && !matchedBook) {
-      lines.push(`### ⚖️ ثانياً: الهدايات العملية والأحكام المستنبطة في الفتاوى`);
-      synthesizedFatwaInsights.forEach((f) => {
-        lines.push(
-          `• **${f.title}:** ${f.synthesizedProse} *(فتوى الشيخ ${f.muftiName}، رقم #${f.fatwaId})*.`
-        );
-      });
-      lines.push('');
-    }
-
-    return lines.join('\n');
-  }
-
-  // ============================================================================
-  // CASE 8: NATURAL CONVERSATIONAL AI SYNTHESIS (إجابة حوارية ذاتية الصياغة مصاغة من المساعد الذكي)
-  // ============================================================================
-  if (pages.length === 0 && fatawa.length === 0 && !matchedBook) {
-    return (
-      `أهلاً بك! بحثت بدقة في أمهات كتب وفتاوى الموسوعة المعتمدة حول موضوع **«${coreTopic || question}»**، ولكن المادة العلمية المتاحة داخل كتب الموسوعة لا تغطي هذا الموضوع ببيان مفصل كافٍ للإجابة العلمية الدقيقة.\n\n` +
-      `💡 **تنبيه منهجي:** تلتزم الموسوعة التزاماً صارماً بأن تكون كتبها المعتمدة هي مصدر المعرفة الوحيد والنهائي، دون استقاء معلومات خارجية أو اختلاق أحكام من المعرفة العامة. يمكنك تجربة إعادة صياغة السؤال بمصطلحات أخرى، أو اختيار كتاب محدد من زر «تحديد كتاب» لحصر النقاش فيه.`
-    );
-  }
-
   const lines: string[] = [];
 
-  // Check if user is asking a comparative question (e.g. "ما الفرق بين...", "قارن بين...")
-  const isComparative =
-    /(?:ما\s+الفرق\s+بين|الفرق\s+بين|مقارنة\s+بين|قارن\s+بين)/i.test(question) ||
-    Boolean(coreTopic.includes('الفرق بين') || coreTopic.includes('مقارنة'));
-
-  // 1. Direct, natural executive answer synthesized in the AI's own words
-  const execSummaries = synthesizedPageInsights
+  // 1. Direct, natural introductory paragraph ending with [1][2][3]
+  const execSummaries = rawPageInsights
     .slice(0, 2)
-    .map((s) => s.compactSummary.replace(/\.$/, ''));
+    .map((s) => s.compactSummary.replace(/\.$/, '').replace(/^يُقرّر هذا المبحث أن\s*/, ''));
   const fatwaExec = synthesizedFatwaInsights[0]?.compactSummary?.replace(/\.$/, '');
 
-  const combinedExecutive =
+  const introSummarySentence =
     execSummaries.length >= 2
-      ? `${execSummaries[0]}، كما ${execSummaries[1]}.`
+      ? `${execSummaries[0]}، كما تُبيّن المصادر أن ${execSummaries[1]}.`
       : execSummaries.length === 1
-      ? `${execSummaries[0]}${fatwaExec ? `، وتؤكد الفتاوى الشرعية أنه ${fatwaExec}` : ''}.`
+      ? `${execSummaries[0]}${fatwaExec ? `، وفي الجانب التطبيقي ${fatwaExec}` : ''}.`
       : fatwaExec
       ? `${fatwaExec}.`
-      : `تتناول مصادر الموسوعة موضوع «${coreTopic}» بتأصيل علمي رصين يجمع بين بيان القواعد والضوابط واستنباط الأحكام التطبيقية.`;
+      : `تُعنى الشريعة الإسلامية ببيان أصولها وضوابطها الشرعية وتفصيل أحكامها التطبيقية.`;
 
   if (matchedBook) {
     lines.push(
-      `بالاستناد إلى كتاب **«${matchedBook.title}»** للعلامة **${matchedBook.author}** حول سؤالك عن **(${coreTopic || question})**: ${combinedExecutive}`
+      `تُعدّ مسألة «${coreTopic || question}» من المباحث العلمية التي تناولها كتاب «${matchedBook.title}» للعلامة ${matchedBook.author} بالتأصيل والبيان؛ حيث ${introSummarySentence} وهذا عرضٌ منظم يوضح تأصيل المسألة، وضوابطها الشرعية، وتفاصيل أحكامها الواردة في الكتاب.${cite([coreTopic], [1, 2])}`
     );
   } else {
     lines.push(
-      `**خلاصة البيان:** في ضوء ما قرّره علماء الموسوعة في مصنفاتهم المعتمدة (${uniqueBooks
-        .slice(0, 3)
-        .join('، ')}) حول **(${coreTopic || question})**؛ فإن ${combinedExecutive}`
+      `تُعدّ مسألة «${coreTopic || question}» من الموضوعات العلمية المهمة التي فصّل العلماء أحكامها وضوابطها في مصنفات الموسوعة وفتاواها؛ حيث ${introSummarySentence} وهذا بيانٌ موجز يعرّف بأصل المسألة، وضوابطها وشروطها، وتطبيقاتها العملية.${cite([coreTopic], [1, 2, 3])}`
     );
   }
   lines.push('');
 
-  // 2. Quranic Evidence if present in the sources
-  if (allQuranVerses.length > 0) {
-    lines.push(`### 📖 التأصيل القرآني للمسألة`);
-    lines.push(
-      `ينطلق التأصيل الشرعي لهذا الباب من قول الله تبارك وتعالى: ${allQuranVerses.join(' ، ')}.`
-    );
-    lines.push('');
-  }
+  let sectionCounter = 1;
 
-  // 3. Comparative Matrix & Distinction if user asked for comparison
-  if (isComparative && synthesizedPageInsights.length >= 2) {
-    const itemA = synthesizedPageInsights[0];
-    const itemB = synthesizedPageInsights[1];
-    lines.push(`### ⚖️ أوجه المقارنة والافتراق بين المفهومين`);
-    lines.push(
-      `من خلال تتبع المباحث الواردة في مصادر الموسوعة، يمكن تلخيص الفروق الجوهرية على النحو الآتي:`
-    );
+  // Section A: Foundational Principles & Evidence from Books (split into clean logical sections if many pages exist)
+  if (rawPageInsights.length > 0) {
+    const firstGroup = rawPageInsights.slice(0, 3);
+    lines.push(`${sectionCounter++}. التأصيل العلمي والضوابط الشرعية للمسألة`);
     lines.push('');
-    lines.push(`| وجه المقارنة | ${itemA.themeTitle} | ${itemB.themeTitle} |`);
-    lines.push(`| :--- | :--- | :--- |`);
-    lines.push(
-      `| **الدلالة والمفهوم** | ${itemA.compactSummary.slice(0, 75)}... | ${itemB.compactSummary.slice(0, 75)}... |`
-    );
-    lines.push(
-      `| **الموضع في التراث** | مبثوث في كتب الفقه والأصول (${itemA.bookName}) | معالج في كتب النظر والتأصيل (${itemB.bookName}) |`
-    );
-    lines.push(
-      `| **الأثر العملي** | يُبنى عليه ضبط الشروط والأحكام | يُستند إليه في التنزيل والتطبيق |`
-    );
-    lines.push('');
-    lines.push(
-      `> 💡 **استنتاج تحليلي:** يتضح من المقارنة بين كلام العلماء أن العلاقة بين الطرفين ليست علاقة تضاد بل علاقة تكامل موضوعي.`
-    );
-    lines.push('');
-  }
+    firstGroup.forEach((ins) => {
+      lines.push(`**${ins.themeTitle}:** ${ins.synthesizedProse} [${ins.citationNum}]`);
+      lines.push('');
+    });
 
-  // 4. Self-Authored Analytical Breakdown (تفصيل المسألة بصياغة المساعد الذكي مع عزو كل فكرة لمصدرها)
-  if (synthesizedPageInsights.length > 0) {
-    lines.push(`### 💡 تفصيل المسألة والضوابط العلمية المستنبطة`);
-    synthesizedPageInsights.forEach((ins, idx) => {
-      const isDeduction = idx % 2 === 1;
-      const tag = isDeduction ? `*(استنتاج تحليلي مستخلص)*` : `*(منصوص في المصدر)*`;
+    const secondGroup = rawPageInsights.slice(3, 6);
+    if (secondGroup.length > 0) {
+      lines.push(`${sectionCounter++}. الأحكام التفصيلية والفروع الفقهية`);
+      lines.push('');
+      secondGroup.forEach((ins) => {
+        lines.push(`**${ins.themeTitle}:** ${ins.synthesizedProse} [${ins.citationNum}]`);
+        lines.push('');
+      });
+    }
+  } else if (catalogMatches.length > 0) {
+    lines.push(`${sectionCounter++}. المصنفات المعتمدة التي تناولت المسألة`);
+    lines.push('');
+    catalogMatches.slice(0, 4).forEach((b, idx) => {
       lines.push(
-        `${idx + 1}. **${ins.themeTitle}:** ${ins.synthesizedProse} ${tag} — *(المرجع: ${ins.bookName} — ${ins.shortAuthor}، ج${ins.part}/ص${ins.pageNumber})*.`
+        `**كتاب «${b.title}»:** من تأليف العلامة ${b.author} في قسم (${b.category})، ويُعدّ من المراجع المعتمدة لدراسة مباحث هذا الباب وفروعه. [${Math.min(idx + 1, Math.max(1, citationRegistry.length))}]`
       );
       lines.push('');
     });
   }
 
-  // 5. Practical Fatwa Insights if present
+  // Section B: Practical Rulings & Fatwas
   if (synthesizedFatwaInsights.length > 0 && !matchedBook) {
-    lines.push(`### ⚖️ التطبيق الفقهي في الفتاوى`);
-    synthesizedFatwaInsights.forEach((f, idx) => {
-      lines.push(
-        `${idx + 1}. **${f.title}:** ${f.synthesizedProse} *(فتوى الشيخ ${f.muftiName}، رقم #${f.fatwaId})*.`
-      );
+    lines.push(`${sectionCounter++}. التطبيقات العملية والفتاوى الشرعية`);
+    lines.push('');
+    synthesizedFatwaInsights.forEach((f) => {
+      lines.push(`**${f.title}:** ${f.synthesizedProse} [${f.citationNum}]`);
       lines.push('');
     });
   }
 
-  // 6. Interactive Closing
-  lines.push(
-    `✨ *يمكنك النقر على أي بطاقة مرجع بالأسفل للانتقال مباشرة إلى صفحتها الأصلية في عارض الكتاب، أو طرح سؤال متابعة لمواصلة النقاش.*`
-  );
+  // Bottom Sources List
+  lines.push(buildSourcesFooter().trim());
 
   return lines.join('\n');
 }

@@ -1803,7 +1803,7 @@ export default function App() {
 
                     const renderInlineRichText = (lineText: string) => {
                       const tokens = lineText.split(
-                        /(\*\*[^*]+\*\*|\*\([^)]+\)\*|﴿[^﴾]+﴾|\[منصوص في المصدر\]|\[استنتاج تحليلي مستخلص\]|\[استنتاج تحليلي\])/g
+                        /(\*\*[^*]+\*\*|\*\([^)]+\)\*|﴿[^﴾]+﴾|\[\d+\]|\[منصوص في المصدر\]|\[استنتاج تحليلي مستخلص\]|\[استنتاج تحليلي\])/g
                       );
                       return tokens.map((tok, tIdx) => {
                         if (!tok) return null;
@@ -1812,6 +1812,38 @@ export default function App() {
                             <strong key={tIdx} className="font-extrabold text-[#d4af37]">
                               {tok.slice(2, -2)}
                             </strong>
+                          );
+                        }
+                        if (/^\[\d+\]$/.test(tok)) {
+                          const refNum = parseInt(tok.slice(1, -1), 10);
+                          const matchedPageSource =
+                            resp?.sources && refNum >= 1 && refNum <= resp.sources.length
+                              ? resp.sources[refNum - 1]
+                              : null;
+                          if (matchedPageSource) {
+                            return (
+                              <button
+                                key={tIdx}
+                                type="button"
+                                onClick={() => {
+                                  setReaderBookId(matchedPageSource.book_id);
+                                  setReaderPageId(matchedPageSource.page_id);
+                                  setReaderHighlight(resp.searchQueryUsed);
+                                }}
+                                title={`${matchedPageSource.book_name} — ج ${matchedPageSource.part || 1}، ص ${matchedPageSource.page_number}`}
+                                className="inline-block mx-0.5 px-1.5 py-0.5 rounded bg-[#d4af37]/15 hover:bg-[#d4af37]/30 border border-[#d4af37]/35 text-[#d4af37] text-[11px] font-sans font-bold align-baseline transition cursor-pointer"
+                              >
+                                {tok}
+                              </button>
+                            );
+                          }
+                          return (
+                            <span
+                              key={tIdx}
+                              className="inline-block mx-0.5 px-1.5 py-0.5 rounded bg-[#d4af37]/15 border border-[#d4af37]/30 text-[#d4af37] text-[11px] font-sans font-bold align-baseline"
+                            >
+                              {tok}
+                            </span>
                           );
                         }
                         if (tok === '[منصوص في المصدر]') {
@@ -2062,6 +2094,37 @@ export default function App() {
                                       </div>
                                     ))}
                                   </div>
+                                );
+                              }
+                              if (/^(?:المصادر|Sources)\s*[:：]?$/i.test(line)) {
+                                return (
+                                  <h4
+                                    key={lIdx}
+                                    className="font-sans font-extrabold text-xs sm:text-sm text-[#d4af37] pt-3 pb-1 border-t border-white/10 mt-2"
+                                  >
+                                    {line}
+                                  </h4>
+                                );
+                              }
+                              if (/^\[\d+\]\s+.+/.test(line)) {
+                                return (
+                                  <div
+                                    key={lIdx}
+                                    className="text-xs sm:text-sm font-sans leading-relaxed opacity-90 py-0.5"
+                                  >
+                                    {renderInlineRichText(line)}
+                                  </div>
+                                );
+                              }
+                              // Numbered main section title like "1. مكانة الصلاة وفضلها" (short line without colon)
+                              if (/^(?:\d+[.-]|[١٢٣٤٥٦٧٨٩٠]+[.-])\s+[^:：]{3,65}$/.test(line)) {
+                                return (
+                                  <h4
+                                    key={lIdx}
+                                    className="font-sans font-extrabold text-sm sm:text-base text-[#d4af37] pt-3 pb-1 border-b border-[#d4af37]/20"
+                                  >
+                                    {line}
+                                  </h4>
                                 );
                               }
                               if (/^(?:•|-|\*|\d+[.-]|[١٢٣٤٥٦٧٨٩٠]+[.-])\s+/.test(line)) {

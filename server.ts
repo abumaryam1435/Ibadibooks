@@ -641,8 +641,8 @@ async function generateWithFallback(
     throw new Error('NO_GEMINI_KEY');
   }
 
-  // Prioritize lightning-fast models without wasting roundtrips on invalid aliases
-  const candidateModels = ['gemini-2.5-flash', 'gemini-flash-latest'];
+  // Prioritize recommended fast Gemini models
+  const candidateModels = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
   let lastError: any = null;
 
   for (const apiKey of validKeys) {
@@ -656,7 +656,7 @@ async function generateWithFallback(
       try {
         const params = buildParams(model);
         const timeoutPromise = new Promise<null>((_, reject) =>
-          setTimeout(() => reject(new Error('GEMINI_TIMEOUT')), 3500)
+          setTimeout(() => reject(new Error('GEMINI_TIMEOUT')), 20000)
         );
         const response: any = await Promise.race([
           ai.models.generateContent(params),
@@ -718,7 +718,7 @@ async function generateWithClaudeFallback(
             'x-api-key': apiKey,
             'anthropic-version': '2023-06-01',
           },
-          signal: AbortSignal.timeout(3500),
+          signal: AbortSignal.timeout(20000),
           body: JSON.stringify({
             model,
             max_tokens: 2400,
@@ -839,7 +839,7 @@ async function prepareScholarlyRAGContext(body: any, onStatus?: (status: string)
     requestedArtifact,
   } = detectScholarlyMode(cleanQuestion, requestedMode, Boolean(matchedBook));
 
-  // 3. Extract core topic, keywords, and comparative facets
+  // 3. Extract core topic, keywords, and comparative/foundational facets
   const { coreTopic, searchQuery, coreTerms, quotedPhrase, conceptFacets } =
     extractCleanTopicAndKeywords(cleanQuestion, matchedBook, Array.isArray(history) ? history : []);
 
@@ -850,27 +850,18 @@ async function prepareScholarlyRAGContext(body: any, onStatus?: (status: string)
   const scopeFilter = matchedBook ? { book_ids: [Number(matchedBook.id)] } : undefined;
   const queryToRun = quotedPhrase || searchQuery;
 
-  onStatus?.(
-    conceptFacets && conceptFacets.length >= 2
-      ? `جاري البحث الموازي في الموسوعة عن طرفي المقارنة: (${conceptFacets[0]}) و (${conceptFacets[1]})...`
-      : 'جاري البحث الدلالي في صفحات ومخطوطات الموسوعة وفهارسها...'
-  );
+  onStatus?.('جاري البحث الدلالي في صفحات ومخطوطات الموسوعة وفهارسها...');
 
-  // If comparative facets present (e.g. "ما الفرق بين الإبداع والابتكار"), search both facets in parallel
+  // Search all conceptFacets in parallel (using mode: 'near', distance: 5, morphology: false for foundational chapters)
   const facetSearches =
     conceptFacets && conceptFacets.length >= 2 && !matchedBook
-      ? [
+      ? conceptFacets.slice(0, 5).map((facetQuery) =>
           callIbadiMCP('ibadi_search_pages', {
-            query: conceptFacets[0],
-            match: { mode: 'tokens', morphology: true },
-            limit: 6,
-          }).catch(() => ({ results: [], total_hits: 0 })),
-          callIbadiMCP('ibadi_search_pages', {
-            query: conceptFacets[1],
-            match: { mode: 'tokens', morphology: true },
-            limit: 6,
-          }).catch(() => ({ results: [], total_hits: 0 })),
-        ]
+            query: facetQuery,
+            match: { mode: 'near', distance: 5, morphology: false },
+            limit: 4,
+          }).catch(() => ({ results: [], total_hits: 0 }))
+        )
       : [];
 
   const [bookMetaAndToc, tokensResult, titlesResult, fatawaResult, ...facetResults] =
@@ -887,31 +878,41 @@ async function prepareScholarlyRAGContext(body: any, onStatus?: (status: string)
       (searchScope !== 'fatawa' || matchedBook) && coreTerms.length > 0
         ? callIbadiMCP('ibadi_search_pages', {
             query: queryToRun,
-            match: { mode: 'tokens', morphology: true },
-            limit: 8,
+            match: { mode: 'tokens', morphology: false },
+            limit: 10,
             ...(scopeFilter ? { scope: scopeFilter } : {}),
-          }).catch(() => ({ results: [], total_hits: 0 }))
+          })
+            .then(async (res) => {
+              if (res?.results?.length > 0) return res;
+              return callIbadiMCP('ibadi_search_pages', {
+                query: queryToRun,
+                match: { mode: 'tokens', morphology: true },
+                limit: 10,
+                ...(scopeFilter ? { scope: scopeFilter } : {}),
+              });
+            })
+            .catch(() => ({ results: [], total_hits: 0 }))
         : Promise.resolve({ results: [], total_hits: 0 }),
 
       (searchScope !== 'fatawa' || matchedBook) && coreTerms.length > 0
         ? callIbadiMCP('ibadi_search_titles', {
-            query: coreTerms.slice(0, 3).join(' '),
-            limit: 4,
+            query: searchQuery,
+            limit: 6,
             ...(scopeFilter ? { scope: scopeFilter } : {}),
           }).catch(() => ({ results: [] }))
         : Promise.resolve({ results: [] }),
 
       !matchedBook && searchScope !== 'books' && coreTerms.length > 0
         ? callIbadiMCP('ibadi_search_fatawa', {
-            query: coreTerms.slice(0, 3).join(' '),
-            limit: 4,
+            query: searchQuery,
+            limit: 16,
           }).catch(() => ({ results: [], total_hits: 0 }))
         : Promise.resolve({ results: [], total_hits: 0 }),
 
       ...facetSearches,
     ]);
 
-  onStatus?.('جاري استخلاص النصوص وتدقيق العزو وتصنيف المنصوص والاستنتاج...');
+  onStatus?.('جاري استخلاص النصوص الكاملة وتدقيق العزو والأحكام الفقهية...');
 
   const candidatePages: any[] = [];
   const seenKeys = new Set<string>();
@@ -953,10 +954,11 @@ async function prepareScholarlyRAGContext(body: any, onStatus?: (status: string)
     }
   }
 
-  for (const h of tokensResult?.results || []) addPageHit(h);
+  // Add facet results first so foundational chapters on the topic are well represented
   for (const res of facetResults) {
     for (const h of (res as any)?.results || []) addPageHit(h);
   }
+  for (const h of tokensResult?.results || []) addPageHit(h);
   for (const t of titlesResult?.results || []) {
     addPageHit({
       book_id: t.book_id,
@@ -978,52 +980,89 @@ async function prepareScholarlyRAGContext(body: any, onStatus?: (status: string)
     matchedBook ? matchedBook.id : null
   );
 
-  const enrichedPages = await Promise.all(
-    relevantPages.slice(0, 2).map(async (hit) => {
-      if (hit.fullBody) return hit;
-      try {
-        const fullPage = await Promise.race([
-          callIbadiMCP('ibadi_get_page', {
-            book_id: hit.book_id,
-            page_id: hit.page_id,
-            include_foot: true,
-          }),
-          new Promise<null>((_, reject) =>
-            setTimeout(() => reject(new Error('PAGE_FETCH_TIMEOUT')), 1200)
-          ),
-        ]);
-        if (fullPage && (fullPage.body || fullPage.book_name)) {
-          return {
-            ...hit,
-            author_name: hit.author_name || fullPage.author_name || '',
-            category: hit.category || fullPage.category || '',
-            fullBody: fullPage.body ? String(fullPage.body).slice(0, 1300) : hit.snippet,
-            fullFoot: fullPage.foot ? String(fullPage.foot).slice(0, 400) : '',
-            part: fullPage.part || hit.part || '1',
-            page_number: fullPage.page_number || hit.page_number || hit.page_id,
-            numbering: fullPage.numbering || hit.numbering || 'unknown',
-            numbering_declared:
-              fullPage.numbering_declared ||
-              (fullPage.numbering === 'printed' ? 'موافق للمطبوع' : 'ترقيم آلي متسلسل'),
-            citable: Boolean(fullPage.citable),
-          };
-        }
-      } catch {
-        // Fallback
-      }
-      return {
-        ...hit,
-        fullBody: hit.snippet,
-        fullFoot: '',
-        part: hit.part || '1',
-        numbering: hit.numbering || 'unknown',
-        numbering_declared: hit.numbering === 'printed' ? 'موافق للمطبوع' : 'ترقيم تسلسلي',
-        citable: Boolean(hit.citable),
-      };
-    })
+  const relevantFatawa = filterAndRankRelevantFatawa(
+    fatawaResult?.results || [],
+    coreTerms,
+    null
   );
+  const totalFatwaHits =
+    relevantFatawa.length > 0 ? fatawaResult?.total_hits || relevantFatawa.length : 0;
 
-  const remainingPages = relevantPages.slice(2, 6).map((hit) => ({
+  // Fetch full text of top 5 relevant book pages AND full answers of top 3 relevant fatwas in parallel
+  const [enrichedPages, enrichedFatawa] = await Promise.all([
+    Promise.all(
+      relevantPages.slice(0, 5).map(async (hit) => {
+        if (hit.fullBody) return hit;
+        try {
+          const fullPage = await Promise.race([
+            callIbadiMCP('ibadi_get_page', {
+              book_id: hit.book_id,
+              page_id: hit.page_id,
+              include_foot: true,
+            }),
+            new Promise<null>((_, reject) =>
+              setTimeout(() => reject(new Error('PAGE_FETCH_TIMEOUT')), 2200)
+            ),
+          ]);
+          if (fullPage && (fullPage.body || fullPage.book_name)) {
+            return {
+              ...hit,
+              author_name: hit.author_name || fullPage.author_name || '',
+              category: hit.category || fullPage.category || '',
+              fullBody: fullPage.body ? String(fullPage.body).slice(0, 1400) : hit.snippet,
+              fullFoot: fullPage.foot ? String(fullPage.foot).slice(0, 400) : '',
+              part: fullPage.part || hit.part || '1',
+              page_number: fullPage.page_number || hit.page_number || hit.page_id,
+              numbering: fullPage.numbering || hit.numbering || 'unknown',
+              numbering_declared:
+                fullPage.numbering_declared ||
+                (fullPage.numbering === 'printed' ? 'موافق للمطبوع' : 'ترقيم آلي متسلسل'),
+              citable: Boolean(fullPage.citable),
+            };
+          }
+        } catch {
+          // Fallback to snippet
+        }
+        return {
+          ...hit,
+          fullBody: hit.snippet,
+          fullFoot: '',
+          part: hit.part || '1',
+          numbering: hit.numbering || 'unknown',
+          numbering_declared: hit.numbering === 'printed' ? 'موافق للمطبوع' : 'ترقيم تسلسلي',
+          citable: Boolean(hit.citable),
+        };
+      })
+    ),
+    Promise.all(
+      relevantFatawa.slice(0, 3).map(async (f) => {
+        try {
+          const detail = await Promise.race([
+            callIbadiMCP('ibadi_get_fatwa', { fatwa_id: f.fatwa_id }),
+            new Promise<null>((_, reject) =>
+              setTimeout(() => reject(new Error('FATWA_FETCH_TIMEOUT')), 2200)
+            ),
+          ]);
+          if (detail && detail.answer) {
+            return {
+              ...f,
+              question: detail.question || f.question_excerpt || f.title || '',
+              answer: String(detail.answer).slice(0, 1000),
+            };
+          }
+        } catch {
+          // Fallback to excerpt
+        }
+        return {
+          ...f,
+          question: f.question_excerpt || f.title || '',
+          answer: f.answer_excerpt || f.question_excerpt || '',
+        };
+      })
+    ),
+  ]);
+
+  const remainingPages = relevantPages.slice(5, 7).map((hit) => ({
     ...hit,
     fullBody: hit.fullBody || hit.snippet,
     fullFoot: hit.fullFoot || '',
@@ -1034,20 +1073,6 @@ async function prepareScholarlyRAGContext(body: any, onStatus?: (status: string)
   }));
 
   const allContextPages = [...enrichedPages, ...remainingPages];
-
-  const relevantFatawa = filterAndRankRelevantFatawa(
-    fatawaResult?.results || [],
-    coreTerms,
-    null
-  );
-  const totalFatwaHits =
-    relevantFatawa.length > 0 ? fatawaResult?.total_hits || relevantFatawa.length : 0;
-
-  const enrichedFatawa = relevantFatawa.slice(0, 3).map((f) => ({
-    ...f,
-    question: f.question_excerpt || f.title || '',
-    answer: f.answer_excerpt || f.question_excerpt || '',
-  }));
 
   const infographicData = buildInfographicData({
     coreTopic,
@@ -1091,7 +1116,7 @@ async function prepareScholarlyRAGContext(body: any, onStatus?: (status: string)
     title: f.title,
     mufti: f.mufti?.name || '',
     question: f.question || f.question_excerpt || '',
-    answer_excerpt: String(f.answer || f.answer_excerpt || '').slice(0, 300),
+    answer_excerpt: String(f.answer || f.answer_excerpt || '').slice(0, 350),
   }));
 
   return {
@@ -1382,11 +1407,10 @@ app.post('/api/ai/ask/stream', async (req, res) => {
             httpOptions: { headers: { 'User-Agent': 'aistudio-build' } },
           });
           const streamResult = await ai.models.generateContentStream({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-3.8-flash',
             contents: promptContent,
             config: {
               systemInstruction,
-              temperature: 0.25,
             },
           });
 

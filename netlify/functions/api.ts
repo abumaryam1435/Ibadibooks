@@ -496,11 +496,12 @@ export async function handler(event: any) {
         requestedArtifact,
       } = detectScholarlyMode(cleanQuestion, requestedMode, Boolean(matchedBook));
 
-      const { coreTopic, searchQuery, coreTerms, quotedPhrase } = extractCleanTopicAndKeywords(
-        cleanQuestion,
-        matchedBook,
-        Array.isArray(history) ? history : []
-      );
+      const { coreTopic, searchQuery, coreTerms, quotedPhrase, conceptFacets } =
+        extractCleanTopicAndKeywords(
+          cleanQuestion,
+          matchedBook,
+          Array.isArray(history) ? history : []
+        );
 
       const catalogMatches = matchedBook
         ? [matchedBook]
@@ -582,26 +583,48 @@ export async function handler(event: any) {
 
         if (coreTerms.length > 0) {
           const queryToRun = quotedPhrase || searchQuery;
-          const [nearResult, tokensResult, titlesResult] = await Promise.all([
+          const facetSearches =
+            conceptFacets && conceptFacets.length >= 2 && !matchedBook
+              ? conceptFacets.slice(0, 5).map((fq) =>
+                  callIbadiMCP('ibadi_search_pages', {
+                    query: fq,
+                    match: { mode: 'near', distance: 5, morphology: false },
+                    limit: 4,
+                  }).catch(() => ({ results: [], total_hits: 0 }))
+                )
+              : [];
+
+          const [nearResult, tokensResult, titlesResult, ...facetResults] = await Promise.all([
             coreTerms.length >= 2
               ? callIbadiMCP('ibadi_search_pages', {
                   query: queryToRun,
-                  match: { mode: 'near', distance: 12, morphology: true },
+                  match: { mode: 'near', distance: 12, morphology: false },
                   limit: 8,
                   ...(scopeFilter ? { scope: scopeFilter } : {}),
                 }).catch(() => ({ results: [], total_hits: 0 }))
               : Promise.resolve({ results: [], total_hits: 0 }),
             callIbadiMCP('ibadi_search_pages', {
               query: queryToRun,
-              match: { mode: 'tokens', morphology: true },
-              limit: 8,
+              match: { mode: 'tokens', morphology: false },
+              limit: 10,
               ...(scopeFilter ? { scope: scopeFilter } : {}),
-            }).catch(() => ({ results: [], total_hits: 0 })),
+            })
+              .then(async (res) => {
+                if (res?.results?.length > 0) return res;
+                return callIbadiMCP('ibadi_search_pages', {
+                  query: queryToRun,
+                  match: { mode: 'tokens', morphology: true },
+                  limit: 10,
+                  ...(scopeFilter ? { scope: scopeFilter } : {}),
+                });
+              })
+              .catch(() => ({ results: [], total_hits: 0 })),
             callIbadiMCP('ibadi_search_titles', {
-              query: coreTerms.slice(0, 4).join(' '),
-              limit: 4,
+              query: searchQuery,
+              limit: 6,
               ...(scopeFilter ? { scope: scopeFilter } : {}),
             }).catch(() => ({ results: [] })),
+            ...facetSearches,
           ]);
 
           const seenKeys = new Set<string>(candidatePages.map((p) => `${p.book_id}:${p.page_id}`));
@@ -615,6 +638,9 @@ export async function handler(event: any) {
             }
           };
 
+          for (const res of facetResults) {
+            for (const h of (res as any)?.results || []) addPageHit(h);
+          }
           for (const h of nearResult?.results || []) addPageHit(h);
           for (const h of tokensResult?.results || []) addPageHit(h);
           for (const t of titlesResult?.results || []) {
@@ -658,7 +684,7 @@ export async function handler(event: any) {
               ...hit,
               author_name: hit.author_name || fullPage.author_name || '',
               category: hit.category || fullPage.category || '',
-              fullBody: fullPage.body ? String(fullPage.body).slice(0, 1300) : hit.snippet,
+              fullBody: fullPage.body ? String(fullPage.body).slice(0, 1400) : hit.snippet,
               fullFoot: fullPage.foot ? String(fullPage.foot).slice(0, 400) : '',
               part: fullPage.part || '1',
               page_number: fullPage.page_number || hit.page_number || hit.page_id,
@@ -689,8 +715,8 @@ export async function handler(event: any) {
 
       if (!matchedBook && searchScope !== 'books' && coreTerms.length > 0) {
         const fatawaResult = await callIbadiMCP('ibadi_search_fatawa', {
-          query: coreTerms.slice(0, 4).join(' '),
-          limit: 6,
+          query: searchQuery,
+          limit: 16,
         }).catch(() => ({ results: [], total_hits: 0 }));
 
         const relevantFatawa = filterAndRankRelevantFatawa(

@@ -275,11 +275,12 @@ async function handleClientSideApi(urlStr: string, init?: RequestInit): Promise<
       requestedArtifact,
     } = detectScholarlyMode(cleanQuestion, requestedMode, Boolean(matchedBook));
 
-    const { coreTopic, searchQuery, coreTerms, quotedPhrase } = extractCleanTopicAndKeywords(
-      cleanQuestion,
-      matchedBook,
-      Array.isArray(history) ? history : []
-    );
+    const { coreTopic, searchQuery, coreTerms, quotedPhrase, conceptFacets } =
+      extractCleanTopicAndKeywords(
+        cleanQuestion,
+        matchedBook,
+        Array.isArray(history) ? history : []
+      );
 
     const catalogMatches = matchedBook
       ? [matchedBook]
@@ -299,26 +300,64 @@ async function handleClientSideApi(urlStr: string, init?: RequestInit): Promise<
     const scopeFilter = matchedBook ? { book_ids: [Number(matchedBook.id)] } : undefined;
     const queryToRun = quotedPhrase || searchQuery;
 
-    // Run book pages search and fatawa search in parallel for instant retrieval
-    const [tokensRes, fRes] = await Promise.all([
+    const facetSearches =
+      conceptFacets && conceptFacets.length >= 2 && !matchedBook
+        ? conceptFacets.slice(0, 5).map((fq) =>
+            callIbadiMCPClient('ibadi_search_pages', {
+              query: fq,
+              match: { mode: 'near', distance: 5, morphology: false },
+              limit: 4,
+            }).catch(() => ({ results: [], total_hits: 0 }))
+          )
+        : [];
+
+    // Run book pages search, facet searches, and fatawa search in parallel
+    const [tokensRes, fRes, ...facetResList] = await Promise.all([
       (searchScope !== 'fatawa' || matchedBook) && coreTerms.length > 0
         ? callIbadiMCPClient('ibadi_search_pages', {
             query: queryToRun,
-            match: { mode: 'tokens', morphology: true },
-            limit: 8,
+            match: { mode: 'tokens', morphology: false },
+            limit: 10,
             ...(scopeFilter ? { scope: scopeFilter } : {}),
-          }).catch(() => ({ results: [], total_hits: 0 }))
+          })
+            .then(async (res) => {
+              if (res?.results?.length > 0) return res;
+              return callIbadiMCPClient('ibadi_search_pages', {
+                query: queryToRun,
+                match: { mode: 'tokens', morphology: true },
+                limit: 10,
+                ...(scopeFilter ? { scope: scopeFilter } : {}),
+              });
+            })
+            .catch(() => ({ results: [], total_hits: 0 }))
         : Promise.resolve({ results: [], total_hits: 0 }),
       !matchedBook && searchScope !== 'books' && coreTerms.length > 0
         ? callIbadiMCPClient('ibadi_search_fatawa', {
-            query: coreTerms.slice(0, 3).join(' '),
-            limit: 4,
+            query: searchQuery,
+            limit: 16,
           }).catch(() => ({ results: [], total_hits: 0 }))
         : Promise.resolve({ results: [], total_hits: 0 }),
+      ...facetSearches,
     ]);
 
-    const candidatePages = tokensRes?.results || [];
-    const totalBookHits = tokensRes?.total_hits || candidatePages.length;
+    const candidatePages: any[] = [];
+    const seenKeys = new Set<string>();
+    const addPageHit = (hit: any) => {
+      if (!hit || !hit.book_id || !hit.page_id) return;
+      if (matchedBook && Number(hit.book_id) !== Number(matchedBook.id)) return;
+      const k = `${hit.book_id}:${hit.page_id}`;
+      if (!seenKeys.has(k)) {
+        seenKeys.add(k);
+        candidatePages.push(hit);
+      }
+    };
+
+    for (const r of facetResList) {
+      for (const h of (r as any)?.results || []) addPageHit(h);
+    }
+    for (const h of tokensRes?.results || []) addPageHit(h);
+
+    const totalBookHits = Math.max(tokensRes?.total_hits || 0, candidatePages.length);
 
     const relevantPages = filterAndRankRelevantPages(
       candidatePages,
@@ -327,42 +366,70 @@ async function handleClientSideApi(urlStr: string, init?: RequestInit): Promise<
       matchedBook ? matchedBook.id : null
     );
 
-    const enrichedPages = await Promise.all(
-      relevantPages.slice(0, 2).map(async (hit) => {
-        try {
-          const fullPage = await Promise.race([
-            callIbadiMCPClient('ibadi_get_page', {
-              book_id: hit.book_id,
-              page_id: hit.page_id,
-              include_foot: true,
-            }),
-            new Promise<null>((_, reject) =>
-              setTimeout(() => reject(new Error('PAGE_FETCH_TIMEOUT')), 1200)
-            ),
-          ]);
-          if (fullPage && (fullPage.body || fullPage.book_name)) {
-            return {
-              ...hit,
-              fullBody: fullPage.body ? String(fullPage.body).slice(0, 1250) : hit.snippet,
-              fullFoot: fullPage.foot ? String(fullPage.foot).slice(0, 400) : '',
-              part: fullPage.part || '1',
-              page_number: fullPage.page_number || hit.page_number || hit.page_id,
-              numbering: fullPage.numbering || hit.numbering || 'unknown',
-              numbering_declared:
-                fullPage.numbering_declared ||
-                (fullPage.numbering === 'printed' ? 'موافق للمطبوع' : 'ترقيم آلي متسلسل'),
-              citable: Boolean(fullPage.citable),
-            };
-          }
-        } catch {
-          // Instant snippet fallback
-        }
-        return hit;
-      })
-    );
-
     const relevantFatawa = filterAndRankRelevantFatawa(fRes?.results || [], coreTerms, null);
-    const enrichedFatawa = relevantFatawa.slice(0, 3);
+
+    const [enrichedPages, enrichedFatawa] = await Promise.all([
+      Promise.all(
+        relevantPages.slice(0, 5).map(async (hit) => {
+          try {
+            const fullPage = await Promise.race([
+              callIbadiMCPClient('ibadi_get_page', {
+                book_id: hit.book_id,
+                page_id: hit.page_id,
+                include_foot: true,
+              }),
+              new Promise<null>((_, reject) =>
+                setTimeout(() => reject(new Error('PAGE_FETCH_TIMEOUT')), 2200)
+              ),
+            ]);
+            if (fullPage && (fullPage.body || fullPage.book_name)) {
+              return {
+                ...hit,
+                fullBody: fullPage.body ? String(fullPage.body).slice(0, 1400) : hit.snippet,
+                fullFoot: fullPage.foot ? String(fullPage.foot).slice(0, 400) : '',
+                part: fullPage.part || '1',
+                page_number: fullPage.page_number || hit.page_number || hit.page_id,
+                numbering: fullPage.numbering || hit.numbering || 'unknown',
+                numbering_declared:
+                  fullPage.numbering_declared ||
+                  (fullPage.numbering === 'printed' ? 'موافق للمطبوع' : 'ترقيم آلي متسلسل'),
+                citable: Boolean(fullPage.citable),
+              };
+            }
+          } catch {
+            // Instant snippet fallback
+          }
+          return hit;
+        })
+      ),
+      Promise.all(
+        relevantFatawa.slice(0, 3).map(async (f) => {
+          try {
+            const detail = await Promise.race([
+              callIbadiMCPClient('ibadi_get_fatwa', { fatwa_id: f.fatwa_id }),
+              new Promise<null>((_, reject) =>
+                setTimeout(() => reject(new Error('FATWA_FETCH_TIMEOUT')), 2200)
+              ),
+            ]);
+            if (detail && detail.answer) {
+              return {
+                ...f,
+                question: detail.question || f.question_excerpt || f.title || '',
+                answer: String(detail.answer).slice(0, 1000),
+              };
+            }
+          } catch {
+            // Fallback
+          }
+          return {
+            ...f,
+            question: f.question_excerpt || f.title || '',
+            answer: f.answer_excerpt || f.question_excerpt || '',
+          };
+        })
+      ),
+    ]);
+
     const totalFatwaHits = enrichedFatawa.length;
 
     let finalAnswerText = '';
