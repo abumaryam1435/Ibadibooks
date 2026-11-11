@@ -16,7 +16,9 @@ import {
 import catalogJson from '../data/catalog.json';
 import { CatalogBook } from '../types';
 
-const catalogBooks: CatalogBook[] = Array.isArray((catalogJson as any)?.books)
+const catalogBooks: CatalogBook[] = Array.isArray(catalogJson)
+  ? (catalogJson as CatalogBook[])
+  : Array.isArray((catalogJson as any)?.books)
   ? (catalogJson as any).books
   : [];
 
@@ -242,22 +244,28 @@ async function handleClientSideApi(urlStr: string, init?: RequestInit): Promise<
     }
 
     const scopeFilter = matchedBook ? { book_ids: [Number(matchedBook.id)] } : undefined;
-    let candidatePages: any[] = [];
-    let totalBookHits = 0;
+    const queryToRun = quotedPhrase || searchQuery;
 
-    if (searchScope !== 'fatawa' || matchedBook) {
-      if (coreTerms.length > 0) {
-        const tokensRes = await callIbadiMCPClient('ibadi_search_pages', {
-          query: quotedPhrase || searchQuery,
-          match: { mode: 'tokens', morphology: true },
-          limit: 8,
-          ...(scopeFilter ? { scope: scopeFilter } : {}),
-        }).catch(() => ({ results: [], total_hits: 0 }));
+    // Run book pages search and fatawa search in parallel for instant retrieval
+    const [tokensRes, fRes] = await Promise.all([
+      (searchScope !== 'fatawa' || matchedBook) && coreTerms.length > 0
+        ? callIbadiMCPClient('ibadi_search_pages', {
+            query: queryToRun,
+            match: { mode: 'tokens', morphology: true },
+            limit: 8,
+            ...(scopeFilter ? { scope: scopeFilter } : {}),
+          }).catch(() => ({ results: [], total_hits: 0 }))
+        : Promise.resolve({ results: [], total_hits: 0 }),
+      !matchedBook && searchScope !== 'books' && coreTerms.length > 0
+        ? callIbadiMCPClient('ibadi_search_fatawa', {
+            query: coreTerms.slice(0, 3).join(' '),
+            limit: 4,
+          }).catch(() => ({ results: [], total_hits: 0 }))
+        : Promise.resolve({ results: [], total_hits: 0 }),
+    ]);
 
-        candidatePages = tokensRes?.results || [];
-        totalBookHits = tokensRes?.total_hits || candidatePages.length;
-      }
-    }
+    const candidatePages = tokensRes?.results || [];
+    const totalBookHits = tokensRes?.total_hits || candidatePages.length;
 
     const relevantPages = filterAndRankRelevantPages(
       candidatePages,
@@ -267,41 +275,42 @@ async function handleClientSideApi(urlStr: string, init?: RequestInit): Promise<
     );
 
     const enrichedPages = await Promise.all(
-      relevantPages.slice(0, 4).map(async (hit) => {
+      relevantPages.slice(0, 2).map(async (hit) => {
         try {
-          const fullPage = await callIbadiMCPClient('ibadi_get_page', {
-            book_id: hit.book_id,
-            page_id: hit.page_id,
-            include_foot: true,
-          });
-          return {
-            ...hit,
-            fullBody: fullPage.body ? String(fullPage.body).slice(0, 1250) : hit.snippet,
-            fullFoot: fullPage.foot ? String(fullPage.foot).slice(0, 400) : '',
-            part: fullPage.part || '1',
-            page_number: fullPage.page_number || hit.page_number || hit.page_id,
-            numbering: fullPage.numbering || hit.numbering || 'unknown',
-            numbering_declared:
-              fullPage.numbering_declared ||
-              (fullPage.numbering === 'printed' ? 'موافق للمطبوع' : 'ترقيم آلي متسلسل'),
-            citable: Boolean(fullPage.citable),
-          };
+          const fullPage = await Promise.race([
+            callIbadiMCPClient('ibadi_get_page', {
+              book_id: hit.book_id,
+              page_id: hit.page_id,
+              include_foot: true,
+            }),
+            new Promise<null>((_, reject) =>
+              setTimeout(() => reject(new Error('PAGE_FETCH_TIMEOUT')), 1200)
+            ),
+          ]);
+          if (fullPage && (fullPage.body || fullPage.book_name)) {
+            return {
+              ...hit,
+              fullBody: fullPage.body ? String(fullPage.body).slice(0, 1250) : hit.snippet,
+              fullFoot: fullPage.foot ? String(fullPage.foot).slice(0, 400) : '',
+              part: fullPage.part || '1',
+              page_number: fullPage.page_number || hit.page_number || hit.page_id,
+              numbering: fullPage.numbering || hit.numbering || 'unknown',
+              numbering_declared:
+                fullPage.numbering_declared ||
+                (fullPage.numbering === 'printed' ? 'موافق للمطبوع' : 'ترقيم آلي متسلسل'),
+              citable: Boolean(fullPage.citable),
+            };
+          }
         } catch {
-          return hit;
+          // Instant snippet fallback
         }
+        return hit;
       })
     );
 
-    let enrichedFatawa: any[] = [];
-    let totalFatwaHits = 0;
-    if (!matchedBook && searchScope !== 'books' && coreTerms.length > 0) {
-      const fRes = await callIbadiMCPClient('ibadi_search_fatawa', {
-        query: coreTerms.slice(0, 4).join(' '),
-        limit: 4,
-      }).catch(() => ({ results: [], total_hits: 0 }));
-      enrichedFatawa = filterAndRankRelevantFatawa(fRes?.results || [], coreTerms, null);
-      totalFatwaHits = enrichedFatawa.length;
-    }
+    const relevantFatawa = filterAndRankRelevantFatawa(fRes?.results || [], coreTerms, null);
+    const enrichedFatawa = relevantFatawa.slice(0, 3);
+    const totalFatwaHits = enrichedFatawa.length;
 
     let finalAnswerText = '';
     const geminiKey = extractCleanApiKey(localStorage.getItem('ibadi_gemini_key') || '').cleanKey;

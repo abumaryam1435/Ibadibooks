@@ -86,7 +86,7 @@ async function callIbadiMCP(toolName: string, args: Record<string, any>): Promis
       'User-Agent': 'IbadiEncyclopediaMobileApp/2.0',
     },
     body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(8000),
+    signal: AbortSignal.timeout(3500),
   });
 
   if (!response.ok) {
@@ -618,8 +618,8 @@ async function generateWithFallback(
     throw new Error('NO_GEMINI_KEY');
   }
 
-  // Prioritize fast free-tier models
-  const candidateModels = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
+  // Prioritize lightning-fast models without wasting roundtrips on invalid aliases
+  const candidateModels = ['gemini-2.5-flash', 'gemini-flash-latest'];
   let lastError: any = null;
 
   for (const apiKey of validKeys) {
@@ -632,13 +632,13 @@ async function generateWithFallback(
     for (const model of candidateModels) {
       try {
         const params = buildParams(model);
-        if (model === 'gemini-3.8-flash' && params.config) {
-          params.config = {
-            ...params.config,
-            thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
-          };
-        }
-        const response = await ai.models.generateContent(params);
+        const timeoutPromise = new Promise<null>((_, reject) =>
+          setTimeout(() => reject(new Error('GEMINI_TIMEOUT')), 3500)
+        );
+        const response: any = await Promise.race([
+          ai.models.generateContent(params),
+          timeoutPromise,
+        ]);
         if (response && response.text) {
           return { text: response.text, modelUsed: model };
         }
@@ -695,6 +695,7 @@ async function generateWithClaudeFallback(
             'x-api-key': apiKey,
             'anthropic-version': '2023-06-01',
           },
+          signal: AbortSignal.timeout(3500),
           body: JSON.stringify({
             model,
             max_tokens: 2400,
@@ -780,54 +781,342 @@ app.post('/api/ai/test-key', async (req, res) => {
   }
 });
 
-// 12. Advanced AI Scholarly Chat, Book Summary, Khutbah, Lesson, Article & Tafsir Assistant
+// Helper: Prepare scholarly RAG context (semantic retrieval, book TOC, pages, fatawa, rankings)
+async function prepareScholarlyRAGContext(body: any, onStatus?: (status: string) => void) {
+  const {
+    question,
+    mode: requestedMode = 'auto',
+    searchScope = 'all',
+    bookId,
+    scopedBookId,
+    history = [],
+  } = body || {};
+  const targetBookId = bookId ?? scopedBookId;
+
+  if (!question || typeof question !== 'string' || !question.trim()) {
+    throw new Error('يرجى كتابة السؤال أو الموضوع المطلوب في الدردشة');
+  }
+
+  const cleanQuestion = question.trim();
+
+  onStatus?.('جاري استيعاب السؤال وتحديد المفاهيم ومطابقة المصادر...');
+
+  // 1. Check if user selected or mentioned a specific book
+  const matchedBook = findMatchingBookInCatalog(
+    cleanQuestion,
+    catalogBooks,
+    targetBookId ? Number(targetBookId) : null,
+    Array.isArray(history) ? history : []
+  );
+
+  // 2. Detect scholarly mode
+  const {
+    mode: effectiveMode,
+    label: modeLabel,
+    requestedArtifact,
+  } = detectScholarlyMode(cleanQuestion, requestedMode, Boolean(matchedBook));
+
+  // 3. Extract core topic, keywords, and comparative facets
+  const { coreTopic, searchQuery, coreTerms, quotedPhrase, conceptFacets } =
+    extractCleanTopicAndKeywords(cleanQuestion, matchedBook, Array.isArray(history) ? history : []);
+
+  const catalogMatches = matchedBook
+    ? [matchedBook]
+    : findRelevantCatalogBooks(coreTerms, cleanQuestion, catalogBooks);
+
+  const scopeFilter = matchedBook ? { book_ids: [Number(matchedBook.id)] } : undefined;
+  const queryToRun = quotedPhrase || searchQuery;
+
+  onStatus?.(
+    conceptFacets && conceptFacets.length >= 2
+      ? `جاري البحث الموازي في الموسوعة عن طرفي المقارنة: (${conceptFacets[0]}) و (${conceptFacets[1]})...`
+      : 'جاري البحث الدلالي في صفحات ومخطوطات الموسوعة وفهارسها...'
+  );
+
+  // If comparative facets present (e.g. "ما الفرق بين الإبداع والابتكار"), search both facets in parallel
+  const facetSearches =
+    conceptFacets && conceptFacets.length >= 2 && !matchedBook
+      ? [
+          callIbadiMCP('ibadi_search_pages', {
+            query: conceptFacets[0],
+            match: { mode: 'tokens', morphology: true },
+            limit: 6,
+          }).catch(() => ({ results: [], total_hits: 0 })),
+          callIbadiMCP('ibadi_search_pages', {
+            query: conceptFacets[1],
+            match: { mode: 'tokens', morphology: true },
+            limit: 6,
+          }).catch(() => ({ results: [], total_hits: 0 })),
+        ]
+      : [];
+
+  const [bookMetaAndToc, tokensResult, titlesResult, fatawaResult, ...facetResults] =
+    await Promise.all([
+      matchedBook
+        ? Promise.all([
+            callIbadiMCP('ibadi_get_book', { book_id: matchedBook.id, include: ['parts'] }).catch(
+              () => null
+            ),
+            callIbadiMCP('ibadi_get_toc', { book_id: matchedBook.id, depth: 3 }).catch(() => null),
+          ]).then(([details, toc]) => ({ details, toc }))
+        : Promise.resolve(null),
+
+      (searchScope !== 'fatawa' || matchedBook) && coreTerms.length > 0
+        ? callIbadiMCP('ibadi_search_pages', {
+            query: queryToRun,
+            match: { mode: 'tokens', morphology: true },
+            limit: 8,
+            ...(scopeFilter ? { scope: scopeFilter } : {}),
+          }).catch(() => ({ results: [], total_hits: 0 }))
+        : Promise.resolve({ results: [], total_hits: 0 }),
+
+      (searchScope !== 'fatawa' || matchedBook) && coreTerms.length > 0
+        ? callIbadiMCP('ibadi_search_titles', {
+            query: coreTerms.slice(0, 3).join(' '),
+            limit: 4,
+            ...(scopeFilter ? { scope: scopeFilter } : {}),
+          }).catch(() => ({ results: [] }))
+        : Promise.resolve({ results: [] }),
+
+      !matchedBook && searchScope !== 'books' && coreTerms.length > 0
+        ? callIbadiMCP('ibadi_search_fatawa', {
+            query: coreTerms.slice(0, 3).join(' '),
+            limit: 4,
+          }).catch(() => ({ results: [], total_hits: 0 }))
+        : Promise.resolve({ results: [], total_hits: 0 }),
+
+      ...facetSearches,
+    ]);
+
+  onStatus?.('جاري استخلاص النصوص وتدقيق العزو وتصنيف المنصوص والاستنتاج...');
+
+  const candidatePages: any[] = [];
+  const seenKeys = new Set<string>();
+
+  const addPageHit = (hit: any) => {
+    if (!hit || !hit.book_id || !hit.page_id) return;
+    if (matchedBook && Number(hit.book_id) !== Number(matchedBook.id)) return;
+    const k = `${hit.book_id}:${hit.page_id}`;
+    if (!seenKeys.has(k)) {
+      seenKeys.add(k);
+      candidatePages.push(hit);
+    }
+  };
+
+  if (matchedBook && (effectiveMode === 'book_summary' || coreTerms.length === 0)) {
+    const tocEntries: any[] = bookMetaAndToc?.toc?.entries || [];
+    const samplePageIds = Array.from(
+      new Set([
+        1,
+        2,
+        ...(tocEntries.slice(0, 4).map((e: any) => Number(e.page_id)).filter((n) => n >= 1)),
+      ])
+    ).slice(0, 4);
+
+    for (const pid of samplePageIds) {
+      addPageHit({
+        book_id: matchedBook.id,
+        book_name: matchedBook.title,
+        author_name: matchedBook.author,
+        category: matchedBook.category,
+        page_id: pid,
+        page_number: pid,
+        part: '1',
+        snippet: `فصل من كتاب ${matchedBook.title} ص ${pid}`,
+        numbering: 'printed',
+        numbering_declared: 'موافق للمطبوع',
+        citable: true,
+      });
+    }
+  }
+
+  for (const h of tokensResult?.results || []) addPageHit(h);
+  for (const res of facetResults) {
+    for (const h of (res as any)?.results || []) addPageHit(h);
+  }
+  for (const t of titlesResult?.results || []) {
+    addPageHit({
+      book_id: t.book_id,
+      book_name: t.book_name,
+      author_name: t.author_name || '',
+      category: t.category || '',
+      page_id: t.page_id,
+      page_number: t.page_number || t.page_id,
+      snippet: `باب / عنوان فصل: ${t.title}`,
+    });
+  }
+
+  const totalBookHits = Math.max(tokensResult?.total_hits || 0, candidatePages.length);
+
+  const relevantPages = filterAndRankRelevantPages(
+    candidatePages,
+    coreTerms,
+    effectiveMode,
+    matchedBook ? matchedBook.id : null
+  );
+
+  const enrichedPages = await Promise.all(
+    relevantPages.slice(0, 2).map(async (hit) => {
+      if (hit.fullBody) return hit;
+      try {
+        const fullPage = await Promise.race([
+          callIbadiMCP('ibadi_get_page', {
+            book_id: hit.book_id,
+            page_id: hit.page_id,
+            include_foot: true,
+          }),
+          new Promise<null>((_, reject) =>
+            setTimeout(() => reject(new Error('PAGE_FETCH_TIMEOUT')), 1200)
+          ),
+        ]);
+        if (fullPage && (fullPage.body || fullPage.book_name)) {
+          return {
+            ...hit,
+            author_name: hit.author_name || fullPage.author_name || '',
+            category: hit.category || fullPage.category || '',
+            fullBody: fullPage.body ? String(fullPage.body).slice(0, 1300) : hit.snippet,
+            fullFoot: fullPage.foot ? String(fullPage.foot).slice(0, 400) : '',
+            part: fullPage.part || hit.part || '1',
+            page_number: fullPage.page_number || hit.page_number || hit.page_id,
+            numbering: fullPage.numbering || hit.numbering || 'unknown',
+            numbering_declared:
+              fullPage.numbering_declared ||
+              (fullPage.numbering === 'printed' ? 'موافق للمطبوع' : 'ترقيم آلي متسلسل'),
+            citable: Boolean(fullPage.citable),
+          };
+        }
+      } catch {
+        // Fallback
+      }
+      return {
+        ...hit,
+        fullBody: hit.snippet,
+        fullFoot: '',
+        part: hit.part || '1',
+        numbering: hit.numbering || 'unknown',
+        numbering_declared: hit.numbering === 'printed' ? 'موافق للمطبوع' : 'ترقيم تسلسلي',
+        citable: Boolean(hit.citable),
+      };
+    })
+  );
+
+  const remainingPages = relevantPages.slice(2, 6).map((hit) => ({
+    ...hit,
+    fullBody: hit.fullBody || hit.snippet,
+    fullFoot: hit.fullFoot || '',
+    part: hit.part || '1',
+    numbering: hit.numbering || 'unknown',
+    numbering_declared: hit.numbering === 'printed' ? 'موافق للمطبوع' : 'ترقيم تسلسلي',
+    citable: Boolean(hit.citable),
+  }));
+
+  const allContextPages = [...enrichedPages, ...remainingPages];
+
+  const relevantFatawa = filterAndRankRelevantFatawa(
+    fatawaResult?.results || [],
+    coreTerms,
+    null
+  );
+  const totalFatwaHits =
+    relevantFatawa.length > 0 ? fatawaResult?.total_hits || relevantFatawa.length : 0;
+
+  const enrichedFatawa = relevantFatawa.slice(0, 3).map((f) => ({
+    ...f,
+    question: f.question_excerpt || f.title || '',
+    answer: f.answer_excerpt || f.question_excerpt || '',
+  }));
+
+  const infographicData = buildInfographicData({
+    coreTopic,
+    mode: effectiveMode,
+    matchedBook,
+    bookMetaAndToc,
+    pages: allContextPages,
+    fatawa: enrichedFatawa,
+    catalogMatches,
+  });
+
+  const slidesData = buildPresentationSlides({
+    coreTopic,
+    mode: effectiveMode,
+    matchedBook,
+    bookMetaAndToc,
+    pages: allContextPages,
+    fatawa: enrichedFatawa,
+    catalogMatches,
+  });
+
+  const followUpSuggestions = buildFollowUpSuggestions(coreTopic, effectiveMode, matchedBook);
+
+  const sources = allContextPages.map((p) => ({
+    book_id: p.book_id,
+    book_name: p.book_name,
+    author_name: p.author_name,
+    author_death: p.author_death,
+    category: p.category,
+    page_id: p.page_id,
+    page_number: p.page_number,
+    part: p.part || '1',
+    numbering: p.numbering,
+    numbering_declared: p.numbering_declared,
+    citable: p.citable,
+    snippet: p.snippet,
+  }));
+
+  const fatawaSources = enrichedFatawa.map((f) => ({
+    fatwa_id: f.fatwa_id,
+    title: f.title,
+    mufti: f.mufti?.name || '',
+    question: f.question || f.question_excerpt || '',
+    answer_excerpt: String(f.answer || f.answer_excerpt || '').slice(0, 300),
+  }));
+
+  return {
+    cleanQuestion,
+    coreTopic,
+    effectiveMode,
+    modeLabel,
+    requestedArtifact,
+    searchQuery,
+    matchedBook,
+    bookMetaAndToc,
+    catalogMatches,
+    allContextPages,
+    enrichedFatawa,
+    sources,
+    fatawaSources,
+    totalBookHits,
+    totalFatwaHits,
+    infographicData,
+    slidesData,
+    followUpSuggestions,
+  };
+}
+// Helper: Strip any robotic instruction-echoing preambles or meta-commentary
+function sanitizeRoboticPreamble(text: string): string {
+  if (!text) return '';
+  return text
+    // Strip "بناءً على تعليماتكم / طلبكم / توجيهاتكم..."
+    .replace(/^[\s\n]*بناءً?\s+على\s+(?:تعليماتكم|طلبكم|توجيهاتكم|أمركم|حرصكم)[^\n]*\n+/i, '')
+    .replace(/^[\s\n]*وفقاً?\s+لـ?(?:تعليماتكم|طلبكم|توجيهاتكم)[^\n]*\n+/i, '')
+    // Strip "النتيجة العلمية: ..." or "نتيجة البحث: ..."
+    .replace(/^[\s\n]*(?:النتيجة العلمية|نتيجة الفحص|نتيجة البحث|خلاصة الفحص)\s*:\s*/i, '')
+    // Strip "فقد قمت بفحص الكتاب بدقة..."
+    .replace(/^[\s\n]*(?:فقد\s+قمتُ?\s+بفحص|قمتُ?\s+بمراجعة)[^\n]*\n+/i, '')
+    // Strip repetitive robotic disclaimers at the start
+    .replace(/^[\s\n]*بالالتزام\s+الحصري\s+والمطلق[^\n]*\n+/i, '')
+    .trim();
+}
+
+// 12. Advanced AI Scholarly Chat Endpoint (Synchronous JSON)
 app.post('/api/ai/ask', async (req, res) => {
   try {
-    const {
-      question,
-      mode: requestedMode = 'auto',
-      searchScope = 'all',
-      bookId,
-      scopedBookId,
-      preferredProvider = 'auto',
-      history = [],
-    } = req.body || {};
-    const targetBookId = bookId ?? scopedBookId;
+    const { preferredProvider = 'auto', history = [] } = req.body || {};
+    const context = await prepareScholarlyRAGContext(req.body);
 
-    if (!question || typeof question !== 'string' || !question.trim()) {
-      return res.status(400).json({ error: 'يرجى كتابة السؤال أو الموضوع المطلوب في الدردشة' });
-    }
-
-    const cleanQuestion = question.trim();
-
-    // 1. Check if the user selected a specific book OR mentioned a specific book in their prompt/history
-    const matchedBook = findMatchingBookInCatalog(
-      cleanQuestion,
-      catalogBooks,
-      targetBookId ? Number(targetBookId) : null,
-      Array.isArray(history) ? history : []
-    );
-
-    // 2. Detect the effective scholarly mode (chat, book_summary, khutbah, lesson, article, tafsir_hadith, infographic, presentation, document)
-    const {
-      mode: effectiveMode,
-      label: modeLabel,
-      requestedArtifact,
-    } = detectScholarlyMode(cleanQuestion, requestedMode, Boolean(matchedBook));
-
-    // 3. Extract pure topic & keywords (stripping framing & file-format words)
-    const { coreTopic, searchQuery, coreTerms, quotedPhrase } = extractCleanTopicAndKeywords(
-      cleanQuestion,
-      matchedBook,
-      Array.isArray(history) ? history : []
-    );
-
-    const catalogMatches = matchedBook
-      ? [matchedBook]
-      : findRelevantCatalogBooks(coreTerms, cleanQuestion, catalogBooks);
-
-    const cacheKey = `${cleanQuestion}::${effectiveMode}::${searchScope}::${
-      matchedBook ? matchedBook.id : 'all'
+    const normKeyQ = normalizeArabic(context.cleanQuestion).replace(/[؟?!.,؛\s]+/g, ' ').trim();
+    const cacheKey = `${normKeyQ}::${context.effectiveMode}::${req.body?.searchScope || 'all'}::${
+      context.matchedBook ? context.matchedBook.id : 'all'
     }`;
     if (askResponseCache.has(cacheKey)) {
       return res.json(askResponseCache.get(cacheKey));
@@ -838,259 +1127,24 @@ app.post('/api/ai/ask', async (req, res) => {
     const serverGeminiKey = extractCleanApiKey(process.env.GEMINI_API_KEY || '').cleanKey;
     const serverClaudeKey = extractCleanApiKey(process.env.ANTHROPIC_API_KEY || '').cleanKey;
 
-    // 4. If a specific book is targeted (either for summary or book-scoped discussion),
-    // fetch that book's metadata + Table of Contents so the response relies 100% on that book!
-    let bookMetaAndToc: { details?: any; toc?: any } | null = null;
-    if (matchedBook) {
-      const [bData, tData] = await Promise.all([
-        callIbadiMCP('ibadi_get_book', { book_id: matchedBook.id, include: ['parts'] }).catch(
-          () => null
-        ),
-        callIbadiMCP('ibadi_get_toc', { book_id: matchedBook.id, depth: 3 }).catch(() => null),
-      ]);
-      bookMetaAndToc = { details: bData, toc: tData };
-    }
-
-    // 5. High-Precision Retrieval from Encyclopedia Books & Fatawa
-    const scopeFilter = matchedBook ? { book_ids: [Number(matchedBook.id)] } : undefined;
-    let candidatePages: any[] = [];
-    let totalBookHits = 0;
-
-    if (searchScope !== 'fatawa' || matchedBook) {
-      // If user asked to summarize a specific book without a narrow sub-topic, fetch sample pages directly from the book
-      if (matchedBook && (effectiveMode === 'book_summary' || coreTerms.length === 0)) {
-        const tocEntries: any[] = bookMetaAndToc?.toc?.entries || [];
-        // Pick first few TOC entry page IDs or pages 1, 2, 3, 5
-        const samplePageIds = Array.from(
-          new Set([
-            1,
-            2,
-            ...(tocEntries.slice(0, 4).map((e: any) => Number(e.page_id)).filter((n) => n >= 1)),
-          ])
-        ).slice(0, 5);
-
-        const samplePages = await Promise.all(
-          samplePageIds.map(async (pid) => {
-            try {
-              const pData = await callIbadiMCP('ibadi_get_page', {
-                book_id: matchedBook.id,
-                page_id: pid,
-                include_foot: true,
-              });
-              if (!pData || !pData.body) return null;
-              return {
-                book_id: matchedBook.id,
-                book_name: matchedBook.title,
-                author_name: matchedBook.author,
-                category: matchedBook.category,
-                page_id: pid,
-                page_number: pData.page_number || pid,
-                part: pData.part || '1',
-                snippet: String(pData.body).slice(0, 350),
-                fullBody: String(pData.body).slice(0, 1250),
-                fullFoot: pData.foot ? String(pData.foot).slice(0, 400) : '',
-                numbering: pData.numbering || 'unknown',
-                numbering_declared:
-                  pData.numbering_declared ||
-                  (pData.numbering === 'printed' ? 'موافق للمطبوع' : 'ترقيم آلي متسلسل'),
-                citable: Boolean(pData.citable),
-              };
-            } catch {
-              return null;
-            }
-          })
-        );
-        candidatePages.push(...samplePages.filter(Boolean));
-        totalBookHits =
-          bookMetaAndToc?.toc?.pages_total || matchedBook.pagesCount || candidatePages.length;
-      }
-
-      // If there are specific core topic terms, run multi-tier precision search
-      if (coreTerms.length > 0) {
-        const queryToRun = quotedPhrase || searchQuery;
-        const [nearResult, tokensResult, titlesResult] = await Promise.all([
-          // Tier 1: Words near each other in the same sentence/paragraph
-          coreTerms.length >= 2
-            ? callIbadiMCP('ibadi_search_pages', {
-                query: queryToRun,
-                match: { mode: 'near', distance: 12, morphology: true },
-                limit: 8,
-                ...(scopeFilter ? { scope: scopeFilter } : {}),
-              }).catch(() => ({ results: [], total_hits: 0 }))
-            : Promise.resolve({ results: [], total_hits: 0 }),
-          // Tier 2: All core terms on the page (with morphology enabled for rich Arabic recall)
-          callIbadiMCP('ibadi_search_pages', {
-            query: queryToRun,
-            match: { mode: 'tokens', morphology: true },
-            limit: 8,
-            ...(scopeFilter ? { scope: scopeFilter } : {}),
-          }).catch(() => ({ results: [], total_hits: 0 })),
-          // Tier 3: Search chapter headings (عناوين الأبواب والفصول) matching the topic
-          callIbadiMCP('ibadi_search_titles', {
-            query: coreTerms.slice(0, 4).join(' '),
-            limit: 4,
-            ...(scopeFilter ? { scope: scopeFilter } : {}),
-          }).catch(() => ({ results: [] })),
-        ]);
-
-        const seenKeys = new Set<string>(candidatePages.map((p) => `${p.book_id}:${p.page_id}`));
-        const addPageHit = (hit: any) => {
-          if (!hit || !hit.book_id || !hit.page_id) return;
-          if (matchedBook && Number(hit.book_id) !== Number(matchedBook.id)) return;
-          const k = `${hit.book_id}:${hit.page_id}`;
-          if (!seenKeys.has(k)) {
-            seenKeys.add(k);
-            candidatePages.push(hit);
-          }
-        };
-
-        for (const h of nearResult?.results || []) addPageHit(h);
-        for (const h of tokensResult?.results || []) addPageHit(h);
-        for (const t of titlesResult?.results || []) {
-          addPageHit({
-            book_id: t.book_id,
-            book_name: t.book_name,
-            author_name: t.author_name || '',
-            category: t.category || '',
-            page_id: t.page_id,
-            page_number: t.page_number || t.page_id,
-            snippet: `باب / عنوان فصل: ${t.title}`,
-          });
-        }
-
-        totalBookHits = Math.max(
-          totalBookHits,
-          tokensResult?.total_hits || 0,
-          nearResult?.total_hits || 0,
-          candidatePages.length
-        );
-
-        // If 0 hits with all terms and coreTerms has >= 3 words, try boolean any_of with top 3 core terms
-        // (Still strictly filtered by filterAndRankRelevantPages below!)
-        if (candidatePages.length === 0 && coreTerms.length >= 2) {
-          const fallbackPages = await callIbadiMCP('ibadi_search_pages', {
-            query: coreTerms.slice(0, 3).join(' '),
-            match: { mode: 'boolean', any_of: coreTerms.slice(0, 3), morphology: true },
-            limit: 10,
-            ...(scopeFilter ? { scope: scopeFilter } : {}),
-          }).catch(() => ({ results: [], total_hits: 0 }));
-
-          for (const h of fallbackPages?.results || []) addPageHit(h);
-          totalBookHits = Math.max(totalBookHits, fallbackPages?.total_hits || 0);
-        }
-      }
-    }
-
-    // 6. Strict Relevance Filtering on Candidate Pages (Eliminates any random/unrelated pages!)
-    const relevantPages = filterAndRankRelevantPages(
-      candidatePages,
-      coreTerms,
-      effectiveMode,
-      matchedBook ? matchedBook.id : null
-    );
-
-    // Enrich top 5 relevant pages with full page body & footnotes
-    const enrichedPages = await Promise.all(
-      relevantPages.slice(0, 5).map(async (hit) => {
-        if (hit.fullBody) return hit;
-        try {
-          const fullPage = await callIbadiMCP('ibadi_get_page', {
-            book_id: hit.book_id,
-            page_id: hit.page_id,
-            include_foot: true,
-          });
-          return {
-            ...hit,
-            author_name: hit.author_name || fullPage.author_name || '',
-            category: hit.category || fullPage.category || '',
-            fullBody: fullPage.body ? String(fullPage.body).slice(0, 1300) : hit.snippet,
-            fullFoot: fullPage.foot ? String(fullPage.foot).slice(0, 400) : '',
-            part: fullPage.part || '1',
-            page_number: fullPage.page_number || hit.page_number || hit.page_id,
-            numbering: fullPage.numbering || hit.numbering || 'unknown',
-            numbering_declared:
-              fullPage.numbering_declared ||
-              (fullPage.numbering === 'printed' ? 'موافق للمطبوع' : 'ترقيم آلي متسلسل'),
-            citable: Boolean(fullPage.citable),
-          };
-        } catch {
-          return {
-            ...hit,
-            fullBody: hit.snippet,
-            fullFoot: '',
-            part: '1',
-            numbering: hit.numbering || 'unknown',
-            numbering_declared: hit.numbering === 'printed' ? 'موافق للمطبوع' : 'ترقيم تسلسلي',
-            citable: Boolean(hit.citable),
-          };
-        }
-      })
-    );
-
-    const remainingPages = relevantPages.slice(5, 8).map((hit) => ({
-      ...hit,
-      fullBody: hit.fullBody || hit.snippet,
-      fullFoot: hit.fullFoot || '',
-      part: hit.part || '1',
-      numbering: hit.numbering || 'unknown',
-      numbering_declared: hit.numbering === 'printed' ? 'موافق للمطبوع' : 'ترقيم تسلسلي',
-      citable: Boolean(hit.citable),
-    }));
-
-    const allContextPages = [...enrichedPages, ...remainingPages];
-
-    // 7. Fetch Fatawa ONLY if not restricted to a single book and searchScope !== 'books'
-    let enrichedFatawa: any[] = [];
-    let totalFatwaHits = 0;
-
-    if (!matchedBook && searchScope !== 'books' && coreTerms.length > 0) {
-      const fatawaResult = await callIbadiMCP('ibadi_search_fatawa', {
-        query: coreTerms.slice(0, 4).join(' '),
-        limit: 6,
-      }).catch(() => ({ results: [], total_hits: 0 }));
-
-      const relevantFatawa = filterAndRankRelevantFatawa(
-        fatawaResult?.results || [],
-        coreTerms,
-        null
-      );
-      totalFatwaHits = relevantFatawa.length > 0 ? fatawaResult?.total_hits || relevantFatawa.length : 0;
-
-      enrichedFatawa = await Promise.all(
-        relevantFatawa.slice(0, 3).map(async (f) => {
-          try {
-            const detail = await callIbadiMCP('ibadi_get_fatwa', { fatwa_id: f.fatwa_id });
-            return {
-              ...f,
-              question: detail.question || f.question_excerpt || '',
-              answer: detail.answer ? String(detail.answer).slice(0, 950) : f.answer_excerpt || '',
-            };
-          } catch {
-            return f;
-          }
-        })
-      );
-    }
-
-    // 8. Synthesize the Scholarly Response using Claude, Gemini, or Built-In Free Composer
     let finalAnswerText = '';
 
     const hasEnoughContext =
-      allContextPages.length > 0 ||
-      enrichedFatawa.length > 0 ||
-      catalogMatches.length > 0 ||
-      Boolean(matchedBook && bookMetaAndToc);
+      context.allContextPages.length > 0 ||
+      context.enrichedFatawa.length > 0 ||
+      context.catalogMatches.length > 0 ||
+      Boolean(context.matchedBook && context.bookMetaAndToc);
 
     if (hasEnoughContext) {
       const { systemInstruction, promptContent } = buildGeminiScholarlyPrompt({
-        question: cleanQuestion,
-        coreTopic,
-        mode: effectiveMode,
-        matchedBook,
-        bookMetaAndToc,
-        pages: allContextPages,
-        fatawa: enrichedFatawa,
-        catalogMatches,
+        question: context.cleanQuestion,
+        coreTopic: context.coreTopic,
+        mode: context.effectiveMode,
+        matchedBook: context.matchedBook,
+        bookMetaAndToc: context.bookMetaAndToc,
+        pages: context.allContextPages,
+        fatawa: context.enrichedFatawa,
+        catalogMatches: context.catalogMatches,
         history: Array.isArray(history) ? history : [],
       });
 
@@ -1153,88 +1207,46 @@ app.post('/api/ai/ask', async (req, res) => {
       }
     }
 
-    // Built-In 100% Free Scholarly Composer (Guaranteed uninterrupted fallback)
     if (!finalAnswerText) {
       finalAnswerText = composeGroundedScholarlyResponse({
-        question: cleanQuestion,
-        coreTopic,
-        searchQuery,
-        mode: effectiveMode,
-        matchedBook,
-        bookMetaAndToc,
-        pages: allContextPages,
-        fatawa: enrichedFatawa,
-        catalogMatches,
-        totalBookHits,
-        totalFatwaHits,
+        question: context.cleanQuestion,
+        coreTopic: context.coreTopic,
+        searchQuery: context.searchQuery,
+        mode: context.effectiveMode,
+        matchedBook: context.matchedBook,
+        bookMetaAndToc: context.bookMetaAndToc,
+        pages: context.allContextPages,
+        fatawa: context.enrichedFatawa,
+        catalogMatches: context.catalogMatches,
+        totalBookHits: context.totalBookHits,
+        totalFatwaHits: context.totalFatwaHits,
       });
     }
 
-    const infographicData = buildInfographicData({
-      coreTopic,
-      mode: effectiveMode,
-      matchedBook,
-      bookMetaAndToc,
-      pages: allContextPages,
-      fatawa: enrichedFatawa,
-      catalogMatches,
-    });
-
-    const slidesData = buildPresentationSlides({
-      coreTopic,
-      mode: effectiveMode,
-      matchedBook,
-      bookMetaAndToc,
-      pages: allContextPages,
-      fatawa: enrichedFatawa,
-      catalogMatches,
-    });
-
-    const followUpSuggestions = buildFollowUpSuggestions(coreTopic, effectiveMode, matchedBook);
-
     const payload = {
-      question: cleanQuestion,
-      modeUsed: effectiveMode,
-      modeLabel,
-      requestedArtifact,
-      coreTopic,
-      searchQueryUsed: searchQuery,
-      matchedBook: matchedBook
+      question: context.cleanQuestion,
+      modeUsed: context.effectiveMode,
+      modeLabel: context.modeLabel,
+      requestedArtifact: context.requestedArtifact,
+      coreTopic: context.coreTopic,
+      searchQueryUsed: context.searchQuery,
+      matchedBook: context.matchedBook
         ? {
-            id: matchedBook.id,
-            title: matchedBook.title,
-            author: matchedBook.author,
-            category: matchedBook.category,
-            era: matchedBook.era,
+            id: context.matchedBook.id,
+            title: context.matchedBook.title,
+            author: context.matchedBook.author,
+            category: context.matchedBook.category,
+            era: context.matchedBook.era,
           }
         : null,
-      answer: finalAnswerText,
-      infographicData,
-      slidesData,
-      followUpSuggestions,
-      sources: allContextPages.map((p) => ({
-        book_id: p.book_id,
-        book_name: p.book_name,
-        author_name: p.author_name,
-        author_death: p.author_death,
-        category: p.category,
-        page_id: p.page_id,
-        page_number: p.page_number,
-        part: p.part || '1',
-        numbering: p.numbering,
-        numbering_declared: p.numbering_declared,
-        citable: p.citable,
-        snippet: p.snippet,
-      })),
-      fatawaSources: enrichedFatawa.map((f) => ({
-        fatwa_id: f.fatwa_id,
-        title: f.title,
-        mufti: f.mufti?.name || '',
-        question: f.question || f.question_excerpt || '',
-        answer_excerpt: String(f.answer || f.answer_excerpt || '').slice(0, 300),
-      })),
-      totalBookHits,
-      totalFatwaHits,
+      answer: sanitizeRoboticPreamble(finalAnswerText),
+      infographicData: context.infographicData,
+      slidesData: context.slidesData,
+      followUpSuggestions: context.followUpSuggestions,
+      sources: context.sources,
+      fatawaSources: context.fatawaSources,
+      totalBookHits: context.totalBookHits,
+      totalFatwaHits: context.totalFatwaHits,
     };
 
     if (askResponseCache.size >= 200) {
@@ -1247,10 +1259,194 @@ app.post('/api/ai/ask', async (req, res) => {
   } catch (err: any) {
     console.error('AI Ask Error:', err);
     res.status(500).json({
-      error: 'حدث خطأ غير متوقع في الاتصال بالشبكة، يرجى المحاولة مرة أخرى.',
+      error: err?.message || 'حدث خطأ غير متوقع في الاتصال بالشبكة، يرجى المحاولة مرة أخرى.',
     });
   }
 });
+
+// 12.1 Real-Time Streaming SSE Endpoint for AI Scholarly Assistant
+app.post('/api/ai/ask/stream', async (req, res) => {
+  // Set headers for Server-Sent Events (SSE)
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+
+  const sendEvent = (event: string, data: any) => {
+    try {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    } catch {
+      // Stream may have closed
+    }
+  };
+
+  let clientDisconnected = false;
+  req.on('close', () => {
+    clientDisconnected = true;
+  });
+
+  try {
+    const { preferredProvider = 'auto', history = [] } = req.body || {};
+
+    // 1. Prepare RAG context with live progress updates
+    const context = await prepareScholarlyRAGContext(req.body, (statusMsg) => {
+      sendEvent('status', { message: statusMsg });
+    });
+
+    if (clientDisconnected) return;
+
+    // 2. Emit metadata (sources, topics, mode, book) so UI displays sources immediately
+    const metaPayload = {
+      question: context.cleanQuestion,
+      modeUsed: context.effectiveMode,
+      modeLabel: context.modeLabel,
+      requestedArtifact: context.requestedArtifact,
+      coreTopic: context.coreTopic,
+      searchQueryUsed: context.searchQuery,
+      matchedBook: context.matchedBook
+        ? {
+            id: context.matchedBook.id,
+            title: context.matchedBook.title,
+            author: context.matchedBook.author,
+            category: context.matchedBook.category,
+            era: context.matchedBook.era,
+          }
+        : null,
+      sources: context.sources,
+      fatawaSources: context.fatawaSources,
+      totalBookHits: context.totalBookHits,
+      totalFatwaHits: context.totalFatwaHits,
+      infographicData: context.infographicData,
+      slidesData: context.slidesData,
+      followUpSuggestions: context.followUpSuggestions,
+    };
+    sendEvent('meta', metaPayload);
+
+    sendEvent('status', { message: 'جاري صياغة الإجابة التحليلية المقارنة بأسلوب الباحث المتخصص...' });
+
+    const customGeminiKey = extractCleanApiKey(String(req.headers['x-gemini-key'] || '')).cleanKey;
+    const customClaudeKey = extractCleanApiKey(String(req.headers['x-claude-key'] || '')).cleanKey;
+    const serverGeminiKey = extractCleanApiKey(process.env.GEMINI_API_KEY || '').cleanKey;
+    const serverClaudeKey = extractCleanApiKey(process.env.ANTHROPIC_API_KEY || '').cleanKey;
+
+    const { systemInstruction, promptContent } = buildGeminiScholarlyPrompt({
+      question: context.cleanQuestion,
+      coreTopic: context.coreTopic,
+      mode: context.effectiveMode,
+      matchedBook: context.matchedBook,
+      bookMetaAndToc: context.bookMetaAndToc,
+      pages: context.allContextPages,
+      fatawa: context.enrichedFatawa,
+      catalogMatches: context.catalogMatches,
+      history: Array.isArray(history) ? history : [],
+    });
+
+    let streamedFullText = '';
+    let streamSuccess = false;
+
+    // Attempt streaming with Gemini SDK if key available
+    const geminiKeys = [customGeminiKey, serverGeminiKey].filter(Boolean);
+    const claudeKeys = [customClaudeKey, serverClaudeKey].filter(Boolean);
+
+    if (geminiKeys.length > 0 && preferredProvider !== 'claude') {
+      for (const apiKey of geminiKeys) {
+        if (clientDisconnected || streamSuccess) break;
+        try {
+          const ai = new GoogleGenAI({
+            apiKey,
+            httpOptions: { headers: { 'User-Agent': 'aistudio-build' } },
+          });
+          const streamResult = await ai.models.generateContentStream({
+            model: 'gemini-2.5-flash',
+            contents: promptContent,
+            config: {
+              systemInstruction,
+              temperature: 0.25,
+            },
+          });
+
+          for await (const chunk of streamResult) {
+            if (clientDisconnected) break;
+            const piece = chunk.text;
+            if (piece) {
+              streamedFullText += piece;
+              sendEvent('chunk', { text: piece });
+              streamSuccess = true;
+            }
+          }
+        } catch {
+          // If streaming fails, fall back to next provider or local composer
+        }
+      }
+    }
+
+    // Attempt streaming with Claude if Gemini wasn't used/available or preferred
+    if (!streamSuccess && claudeKeys.length > 0 && !clientDisconnected) {
+      try {
+        const claudeRes = await generateWithClaudeFallback(
+          claudeKeys,
+          systemInstruction,
+          promptContent
+        );
+        if (claudeRes.text) {
+          // Stream the completed Claude text in quick chunks for typing effect
+          const words = claudeRes.text.split(/(\s+)/);
+          for (let i = 0; i < words.length; i += 4) {
+            if (clientDisconnected) break;
+            const slice = words.slice(i, i + 4).join('');
+            streamedFullText += slice;
+            sendEvent('chunk', { text: slice });
+            await new Promise((r) => setTimeout(r, 18));
+          }
+          streamSuccess = true;
+        }
+      } catch {
+        // Fall back to built-in composer
+      }
+    }
+
+    // If external models were unavailable, stream the Built-In Local Knowledge Composer
+    if (!streamSuccess && !clientDisconnected) {
+      const localResponse = composeGroundedScholarlyResponse({
+        question: context.cleanQuestion,
+        coreTopic: context.coreTopic,
+        searchQuery: context.searchQuery,
+        mode: context.effectiveMode,
+        matchedBook: context.matchedBook,
+        bookMetaAndToc: context.bookMetaAndToc,
+        pages: context.allContextPages,
+        fatawa: context.enrichedFatawa,
+        catalogMatches: context.catalogMatches,
+        totalBookHits: context.totalBookHits,
+        totalFatwaHits: context.totalFatwaHits,
+      });
+
+      // Stream the local knowledge response smoothly in 3-4 word chunks
+      const tokens = localResponse.split(/(\s+)/);
+      for (let i = 0; i < tokens.length; i += 4) {
+        if (clientDisconnected) break;
+        const chunkStr = tokens.slice(i, i + 4).join('');
+        streamedFullText += chunkStr;
+        sendEvent('chunk', { text: chunkStr });
+        await new Promise((r) => setTimeout(r, 16));
+      }
+    }
+
+    const cleanFinalAnswer = sanitizeRoboticPreamble(streamedFullText);
+
+    sendEvent('done', {
+      fullAnswer: cleanFinalAnswer,
+    });
+    res.end();
+  } catch (err: any) {
+    console.error('AI Stream Error:', err);
+    sendEvent('error', { message: err?.message || 'حدث خطأ أثناء معالجة السؤال' });
+    res.end();
+  }
+});
+
 
 // 13. Local-Only Deterministic Tashkeel & Typo Proofreading (0 API Calls, 100% Free, Never Uses Credits)
 app.post('/api/ai/tashkeel', (req, res) => {

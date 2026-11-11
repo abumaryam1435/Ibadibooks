@@ -486,6 +486,40 @@ export const BookReaderModal: React.FC<BookReaderModalProps> = ({
     await executeInBookSearch();
   };
 
+  // Memoize Arabic proofreading & vocalization BEFORE any early return so hook order is 100% invariant
+  const processedBody = useMemo(
+    () =>
+      proofreadAndVocalizeArabic(pageData?.body || '', {
+        fixTypos: true,
+        applyTashkeel: enableTashkeel,
+      }),
+    [pageData?.body, enableTashkeel]
+  );
+
+  const processedFoot = useMemo(
+    () =>
+      proofreadAndVocalizeArabic(pageData?.foot || '', {
+        fixTypos: true,
+        applyTashkeel: enableTashkeel,
+      }),
+    [pageData?.foot, enableTashkeel]
+  );
+
+  // Cached adjacent page data for live interactive underlay preview while dragging
+  const adjacentPreviewPage = useMemo(() => {
+    if (!bookId || !pageData || !swipeDirState) return null;
+    const targetId = swipeDirState === 'next' ? pageData.next_page_id : pageData.prev_page_id;
+    if (!targetId) return null;
+    return pageCacheRef.current.get(`${bookId}:${targetId}`) || null;
+  }, [bookId, pageData, swipeDirState, cacheTick]);
+
+  // Ensure page sheet is always visible when pageData updates
+  useEffect(() => {
+    if (bookId && pageData) {
+      resetPageSheetStyles();
+    }
+  }, [bookId, pageData, currentPageId]);
+
   if (!bookId) return null;
 
   const bookTitle =
@@ -523,33 +557,6 @@ export const BookReaderModal: React.FC<BookReaderModalProps> = ({
     setCopiedCitation(true);
     setTimeout(() => setCopiedCitation(false), 2000);
   };
-
-  // Memoize Arabic proofreading & vocalization so touch gestures never re-run text processing
-  const processedBody = useMemo(
-    () =>
-      proofreadAndVocalizeArabic(pageData?.body || '', {
-        fixTypos: true,
-        applyTashkeel: enableTashkeel,
-      }),
-    [pageData?.body, enableTashkeel]
-  );
-
-  const processedFoot = useMemo(
-    () =>
-      proofreadAndVocalizeArabic(pageData?.foot || '', {
-        fixTypos: true,
-        applyTashkeel: enableTashkeel,
-      }),
-    [pageData?.foot, enableTashkeel]
-  );
-
-  // Cached adjacent page data for live interactive underlay preview while dragging
-  const adjacentPreviewPage = useMemo(() => {
-    if (!bookId || !pageData || !swipeDirState) return null;
-    const targetId = swipeDirState === 'next' ? pageData.next_page_id : pageData.prev_page_id;
-    if (!targetId) return null;
-    return pageCacheRef.current.get(`${bookId}:${targetId}`) || null;
-  }, [bookId, pageData, swipeDirState, cacheTick]);
 
   const allCorrections = processedBody.corrections;
 
@@ -1037,13 +1044,7 @@ export const BookReaderModal: React.FC<BookReaderModalProps> = ({
                     </div>
                   )}
 
-                  {/* Arabic Touch Swipe Hint */}
-                  <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-white/5 border border-white/5 text-[11px] opacity-75">
-                    <span className="flex items-center gap-1.5">
-                      <Hand className="w-3.5 h-3.5 text-[#d4af37] shrink-0" />
-                      <span>اسحب الصفحة لليمين (→) للصفحة التالية، أو لليسار (←) للسابقة بحركة تفاعلية متزامنة</span>
-                    </span>
-                  </div>
+
 
                   {/* Chapter Breadcrumb */}
                   {pageData.chapter_chain && pageData.chapter_chain.length > 0 && (

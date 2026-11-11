@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
+  Square,
   BookOpen,
   Search,
   Sparkles,
@@ -176,6 +177,8 @@ export default function App() {
   });
   const [aiError, setAiError] = useState<string | null>(null);
   const [copiedAiMode, setCopiedAiMode] = useState<string | null>(null);
+  const [aiLiveStatus, setAiLiveStatus] = useState<string>('');
+  const aiAbortControllerRef = useRef<AbortController | null>(null);
 
   const aiBookPickerOptions = useMemo(() => {
     return searchLocalCatalog({ q: aiBookPickerQuery, limit: 15 }).results;
@@ -346,7 +349,24 @@ export default function App() {
     }
   };
 
-  // Advanced AI Scholarly Chat & Content Creation Handler
+  // Stop ongoing AI streaming generation
+  const handleStopAI = () => {
+    if (aiAbortControllerRef.current) {
+      aiAbortControllerRef.current.abort();
+      aiAbortControllerRef.current = null;
+    }
+    setAiLoading(false);
+    setAiLiveStatus('');
+    setAiMessages((prev) =>
+      prev.map((msg, idx) =>
+        idx === prev.length - 1 && msg.role === 'assistant'
+          ? { ...msg, isStreaming: false, isStopped: true }
+          : msg
+      )
+    );
+  };
+
+  // Advanced AI Scholarly Chat & Content Creation Handler with SSE Streaming
   const handleAskAI = async (
     customPrompt?: string,
     overrideMode?: AIChatMode,
@@ -354,6 +374,12 @@ export default function App() {
   ) => {
     const q = (customPrompt !== undefined ? customPrompt : aiQuestion).trim();
     if (!q) return;
+
+    if (aiAbortControllerRef.current) {
+      aiAbortControllerRef.current.abort();
+    }
+    const abortController = new AbortController();
+    aiAbortControllerRef.current = abortController;
 
     const modeToUse = overrideMode !== undefined ? overrideMode : aiMode;
     const bookToUse = overrideBook !== undefined ? overrideBook : aiScopedBook;
@@ -367,9 +393,22 @@ export default function App() {
       timestamp: Date.now(),
     };
 
-    setAiMessages((prev) => [...prev, userMsg]);
+    const assistantMsgId = `assistant-${Date.now()}`;
+    const initialAssistantMsg: AIChatMessage = {
+      id: assistantMsgId,
+      role: 'assistant',
+      content: '',
+      mode: modeToUse,
+      scopedBookName: bookToUse?.name,
+      timestamp: Date.now(),
+      isStreaming: true,
+      statusMessage: 'جاري استيعاب المسألة ومطابقة المصادر في الموسوعة...',
+    };
+
+    setAiMessages((prev) => [...prev, userMsg, initialAssistantMsg]);
     setAiQuestion('');
     setAiLoading(true);
+    setAiLiveStatus('جاري استيعاب المسألة ومطابقة المصادر في الموسوعة...');
     setAiError(null);
 
     try {
@@ -388,9 +427,10 @@ export default function App() {
         bookId: m.response?.matchedBook?.id || (m.scopedBookName ? bookToUse?.id : undefined),
       }));
 
-      const res = await apiFetch('/api/ai/ask', {
+      const res = await fetch('/api/ai/ask/stream', {
         method: 'POST',
         headers,
+        signal: abortController.signal,
         body: JSON.stringify({
           question: q,
           mode: modeToUse,
@@ -401,32 +441,198 @@ export default function App() {
         }),
       });
 
-      const data: AIResearchResponse & { error?: string; needsKey?: boolean } = await res.json();
       if (!res.ok) {
-        if (data.needsKey) {
-          setIsApiModalOpen(true);
-        }
-        setAiError(data.error || 'تعذر إتمام الطلب في الدردشة العلمية.');
-      } else {
-        setAiResult(data);
-        // If the backend detected a specific book mentioned in the prompt, sync it if user asked for book summary
-        const assistantMsg: AIChatMessage = {
-          id: `assistant-${Date.now()}`,
-          role: 'assistant',
-          content: data.answer,
-          mode: data.modeUsed || modeToUse,
-          modeLabel: data.modeLabel,
-          scopedBookName: data.matchedBook?.title || bookToUse?.name,
-          response: data,
-          timestamp: Date.now(),
-        };
-        setAiMessages((prev) => [...prev, assistantMsg]);
+        throw new Error(`خطأ في استجابة الخادم: ${res.status}`);
       }
-    } catch {
-      setAiError('حدث خطأ في الاتصال بالخادم. يرجى المحاولة مرة أخرى.');
+
+      if (!res.body) {
+        throw new Error('لا يوجد دفق بيانات من الخادم');
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+      let accumulatedAnswer = '';
+      let metaData: any = null;
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split('\n\n');
+        buffer = events.pop() || '';
+
+        for (const rawEvent of events) {
+          if (!rawEvent.trim()) continue;
+
+          let eventType = 'message';
+          let dataStr = '';
+
+          const lines = rawEvent.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('event: ')) {
+              eventType = line.slice(7).trim();
+            } else if (line.startsWith('data: ')) {
+              dataStr = line.slice(6);
+            }
+          }
+
+          if (!dataStr) continue;
+
+          try {
+            const parsedData = JSON.parse(dataStr);
+
+            if (eventType === 'status') {
+              const statusText = parsedData.message || '';
+              setAiLiveStatus(statusText);
+              setAiMessages((prev) =>
+                prev.map((m) =>
+                  m.id === assistantMsgId
+                    ? { ...m, statusMessage: statusText }
+                    : m
+                )
+              );
+            } else if (eventType === 'meta') {
+              metaData = parsedData;
+              setAiMessages((prev) =>
+                prev.map((m) => {
+                  if (m.id !== assistantMsgId) return m;
+                  const synthResponse: AIResearchResponse = {
+                    question: q,
+                    modeUsed: metaData.modeUsed,
+                    modeLabel: metaData.modeLabel,
+                    requestedArtifact: metaData.requestedArtifact,
+                    coreTopic: metaData.coreTopic,
+                    searchQueryUsed: metaData.searchQueryUsed,
+                    matchedBook: metaData.matchedBook,
+                    answer: accumulatedAnswer,
+                    infographicData: metaData.infographicData,
+                    slidesData: metaData.slidesData,
+                    followUpSuggestions: metaData.followUpSuggestions,
+                    sources: metaData.sources || [],
+                    fatawaSources: metaData.fatawaSources || [],
+                    totalBookHits: metaData.totalBookHits || 0,
+                    totalFatwaHits: metaData.totalFatwaHits || 0,
+                  };
+                  return {
+                    ...m,
+                    mode: metaData.modeUsed,
+                    modeLabel: metaData.modeLabel,
+                    scopedBookName: metaData.matchedBook?.title || bookToUse?.name,
+                    response: synthResponse,
+                  };
+                })
+              );
+            } else if (eventType === 'chunk') {
+              accumulatedAnswer += parsedData.text || '';
+              setAiMessages((prev) =>
+                prev.map((m) => {
+                  if (m.id !== assistantMsgId) return m;
+                  const currentResp = m.response || {
+                    question: q,
+                    modeUsed: modeToUse,
+                    searchQueryUsed: q,
+                    answer: accumulatedAnswer,
+                    sources: [],
+                    fatawaSources: [],
+                    totalBookHits: 0,
+                    totalFatwaHits: 0,
+                  };
+                  return {
+                    ...m,
+                    content: accumulatedAnswer,
+                    isStreaming: true,
+                    response: {
+                      ...currentResp,
+                      answer: accumulatedAnswer,
+                    },
+                  };
+                })
+              );
+            } else if (eventType === 'done') {
+              const finalAns = parsedData.fullAnswer || accumulatedAnswer;
+              setAiMessages((prev) =>
+                prev.map((m) => {
+                  if (m.id !== assistantMsgId) return m;
+                  const finalResp: AIResearchResponse = {
+                    question: q,
+                    modeUsed: metaData?.modeUsed || modeToUse,
+                    modeLabel: metaData?.modeLabel,
+                    requestedArtifact: metaData?.requestedArtifact,
+                    coreTopic: metaData?.coreTopic,
+                    searchQueryUsed: metaData?.searchQueryUsed || q,
+                    matchedBook: metaData?.matchedBook,
+                    answer: finalAns,
+                    infographicData: metaData?.infographicData,
+                    slidesData: metaData?.slidesData,
+                    followUpSuggestions: metaData?.followUpSuggestions,
+                    sources: metaData?.sources || [],
+                    fatawaSources: metaData?.fatawaSources || [],
+                    totalBookHits: metaData?.totalBookHits || 0,
+                    totalFatwaHits: metaData?.totalFatwaHits || 0,
+                  };
+                  setAiResult(finalResp);
+                  return {
+                    ...m,
+                    content: finalAns,
+                    isStreaming: false,
+                    response: finalResp,
+                  };
+                })
+              );
+            } else if (eventType === 'error') {
+              setAiError(parsedData.message || 'حدث خطأ أثناء معالجة السؤال');
+            }
+          } catch {
+            // Non-JSON line or parse error
+          }
+        }
+      }
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        // User deliberately clicked Stop
+      } else {
+        setAiError('حدث خطأ في الاتصال بالخادم. يرجى المحاولة مرة أخرى.');
+        setAiMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantMsgId ? { ...m, isStreaming: false } : m
+          )
+        );
+      }
     } finally {
+      aiAbortControllerRef.current = null;
       setAiLoading(false);
+      setAiLiveStatus('');
     }
+  };
+
+  // Regenerate last assistant response
+  const handleRegenerateLastAI = () => {
+    let lastUserQuery = '';
+    let lastMode: AIChatMode | undefined = undefined;
+    let lastBook: { id: number; name: string } | null = null;
+
+    for (let i = aiMessages.length - 1; i >= 0; i--) {
+      if (aiMessages[i].role === 'user') {
+        lastUserQuery = aiMessages[i].content;
+        lastMode = aiMessages[i].mode;
+        break;
+      }
+    }
+
+    if (!lastUserQuery) return;
+
+    // Remove the last assistant message and re-run
+    setAiMessages((prev) => {
+      const idx = prev.map((m) => m.role).lastIndexOf('assistant');
+      if (idx !== -1) {
+        return prev.slice(0, idx);
+      }
+      return prev;
+    });
+
+    handleAskAI(lastUserQuery, lastMode, lastBook || aiScopedBook);
   };
 
   // Copy AI Answer Helpers
@@ -1285,825 +1491,819 @@ export default function App() {
           </main>
         )}
 
-        {/* TAB 3: ADVANCED AI SCHOLARLY CHAT & CONTENT STUDIO (المحادثة العلمية الشاملة وصناعة المحتوى من الموسوعة) */}
+        {/* TAB 3: QAF-STYLE CONVERSATIONAL AI ASSISTANT & CONTENT STUDIO (محادثة ذكية بأسلوب تطبيق قاف) */}
         {activeTab === 'ai' && (
-          <main className="p-3 sm:p-4 space-y-3.5 flex-1">
-            {/* Top Banner: Mobile-Fitted Studio Introduction */}
+          <main className="p-3 sm:p-4 flex flex-col gap-3 flex-1 min-h-[72vh]">
+            {/* 1. Clean Responsive Assistant Header Bar */}
             <div
-              className={`p-3.5 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${themeClasses.cardBg}`}
+              className={`p-3 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${themeClasses.cardBg}`}
             >
-              <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                <AppLogo size="sm" />
-                <div className="min-w-0 flex-1 space-y-1">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <h2 className="font-extrabold text-sm sm:text-base leading-snug break-words">
-                      المساعد العلمي الشامل واستوديو الملفات
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-[#d4af37] to-[#9a7b1c] text-black flex items-center justify-center shrink-0 shadow-sm">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <h2 className="font-extrabold text-sm sm:text-base leading-snug text-[#d4af37]">
+                      المساعد الذكي للموسوعة
                     </h2>
                     <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 text-[10px] font-bold">
-                      إنفوجرافيك • باوربوينت • وورد • PDF
+                      صياغة ذاتية من المصادر
                     </span>
                   </div>
-                  <p className={`text-xs leading-relaxed break-words ${themeClasses.mutedText}`}>
-                    حاور في أي موضوع بالموسوعة • لخص الكتب • صمم إنفوجرافيك (PNG) • عروض باوربوينت (.pptx) • ملفات Word و PDF • خطب ودروس
+                  <p className={`text-[11px] truncate ${themeClasses.mutedText}`}>
+                    إجابات مؤصلة مستندة إلى كتب وفتاوى الموسوعة
                   </p>
                 </div>
               </div>
 
-              {aiMessages.length > 0 && (
+              <div className="flex items-center gap-1.5 self-end sm:self-auto shrink-0 w-full sm:w-auto justify-end pt-1 sm:pt-0 border-t sm:border-t-0 border-white/5">
                 <button
                   type="button"
-                  onClick={() => {
-                    setAiMessages([]);
-                    setAiResult(null);
-                    setAiError(null);
-                  }}
-                  className="w-full sm:w-auto px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/15 text-xs font-bold flex items-center justify-center gap-1.5 shrink-0 transition"
-                  title="بدء محادثة جديدة"
+                  onClick={() => setShowAiBookPicker((p) => !p)}
+                  className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition ${
+                    aiScopedBook
+                      ? 'bg-[#d4af37] text-black border-[#d4af37]'
+                      : 'bg-[#d4af37]/15 border-[#d4af37]/40 text-[#d4af37] hover:bg-[#d4af37]/25'
+                  }`}
                 >
-                  <RotateCcw className="w-3.5 h-3.5 text-[#d4af37]" />
-                  <span>محادثة جديدة</span>
+                  <BookOpen className="w-3.5 h-3.5 shrink-0" />
+                  <span className="max-w-[140px] sm:max-w-[180px] truncate">
+                    {aiScopedBook ? aiScopedBook.name : 'تحديد كتاب'}
+                  </span>
                 </button>
-              )}
+
+                {aiMessages.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAiMessages([]);
+                      setAiResult(null);
+                      setAiError(null);
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/15 text-xs font-bold flex items-center justify-center gap-1 shrink-0 transition"
+                    title="بدء محادثة جديدة"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5 text-[#d4af37]" />
+                    <span>جديد</span>
+                  </button>
+                )}
+              </div>
             </div>
 
-            {/* Book-Only Restriction Selector & Active Scoped Book Banner */}
-            <div className={`p-3.5 rounded-2xl border space-y-2.5 ${themeClasses.cardBg}`}>
-              {aiScopedBook ? (
-                <div className="space-y-2.5">
-                  <div className="p-3 rounded-xl bg-[#d4af37]/15 border border-[#d4af37]/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                    <div className="flex items-start gap-2 min-w-0 flex-1">
-                      <BookOpen className="w-4 h-4 text-[#d4af37] shrink-0 mt-0.5" />
+            {/* Active Scoped Book Quick Strip */}
+            {aiScopedBook && (
+              <div className="p-2.5 rounded-2xl bg-[#d4af37]/15 border border-[#d4af37]/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <BookOpen className="w-4 h-4 text-[#d4af37] shrink-0" />
+                  <span className="font-bold text-[#d4af37] truncate">
+                    النقاش محصور في: «{aiScopedBook.name}»
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAiMode('book_summary');
+                      handleAskAI(
+                        `لخص لي كتاب ${aiScopedBook.name} ومنهجه وأبرز أبوابه وفصوله`,
+                        'book_summary',
+                        aiScopedBook
+                      );
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-[#d4af37] text-black font-bold text-[11px]"
+                  >
+                    لخص الكتاب
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAiScopedBook(null)}
+                    className="px-2 py-1 rounded-lg bg-black/25 hover:bg-black/40 text-[11px] font-bold flex items-center gap-1"
+                  >
+                    <X className="w-3 h-3" />
+                    <span>إلغاء الحصر</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {showAiBookPicker && (
+              <div className={`p-3 rounded-2xl border shadow-xl space-y-2.5 ${themeClasses.cardBg}`}>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-[#d4af37]">
+                    اختر كتاباً من الموسوعة لتلخيصه أو حصر الحوار فيه:
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowAiBookPicker(false)}
+                    className="p-1 rounded-lg hover:bg-white/10"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <input
+                  type="search"
+                  value={aiBookPickerQuery}
+                  onChange={(e) => setAiBookPickerQuery(e.target.value)}
+                  placeholder="ابحث عن اسم الكتاب أو المؤلف..."
+                  className={`w-full px-3 py-2 rounded-xl border text-xs focus:border-[#d4af37] focus:outline-none ${themeClasses.inputBg}`}
+                />
+                <div className="max-h-52 overflow-y-auto space-y-1.5">
+                  {aiBookPickerOptions.map((b) => (
+                    <div
+                      key={b.id}
+                      className="w-full p-2.5 rounded-xl bg-black/10 hover:bg-[#d4af37]/10 border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs transition"
+                    >
                       <div className="min-w-0 flex-1">
-                        <span className="text-[11px] opacity-85 block">
-                          الدردشة والتلخيص محصورة حالياً في هذا الكتاب فقط:
-                        </span>
-                        <strong className="text-xs sm:text-sm text-[#d4af37] font-extrabold break-words leading-snug block mt-0.5">
-                          «{aiScopedBook.name}»
-                        </strong>
+                        <div className="font-bold break-words leading-snug">{b.title}</div>
+                        <div className="text-[11px] opacity-75 break-words mt-0.5">
+                          {b.author} • {b.category}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 sm:flex items-center gap-1.5 w-full sm:w-auto shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const scoped = { id: b.id, name: b.title };
+                            setAiScopedBook(scoped);
+                            setShowAiBookPicker(false);
+                            setAiMode('book_summary');
+                            handleAskAI(
+                              `لخص لي كتاب ${b.title} ومنهجه وأبرز أبوابه وفصوله`,
+                              'book_summary',
+                              scoped
+                            );
+                          }}
+                          className="px-2.5 py-1.5 rounded-lg bg-[#d4af37] text-black font-bold text-[11px] text-center"
+                        >
+                          لخص الكتاب
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAiScopedBook({ id: b.id, name: b.title });
+                            setShowAiBookPicker(false);
+                          }}
+                          className="px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 font-bold text-[11px] text-center"
+                        >
+                          حصر النقاش فيه
+                        </button>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setAiScopedBook(null)}
-                      className="w-full sm:w-auto px-3 py-2 rounded-xl bg-black/20 hover:bg-black/35 text-xs font-bold flex items-center justify-center gap-1 shrink-0"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                      <span>إلغاء الحصر (كل الموسوعة)</span>
-                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 2. Qaf-Style Conversational Area (Welcome View when empty OR Chat Thread when active) */}
+            <div className="flex-1 flex flex-col justify-between gap-3">
+              {aiMessages.length === 0 && !aiLoading ? (
+                <div className="my-auto space-y-4 py-2">
+                  {/* Qaf-Style Center Greeting */}
+                  <div className={`p-5 rounded-3xl border text-center space-y-2.5 ${themeClasses.cardBg}`}>
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#d4af37] to-[#9a7b1c] text-black flex items-center justify-center mx-auto shadow-md">
+                      <Sparkles className="w-6 h-6" />
+                    </div>
+                    <h3 className="font-extrabold text-base sm:text-lg text-[#d4af37]">
+                      أهلاً بك في المحادثة الذكية للموسوعة
+                    </h3>
+                    <p className={`text-xs sm:text-sm max-w-xl mx-auto leading-relaxed ${themeClasses.mutedText}`}>
+                      اسأل بأسلوبك الطبيعي عن أي مسألة فقهية أو عقدية أو تاريخية؛ يقرأ المساعد أمهات الكتب والفتاوى ثم <strong className="text-[#d4af37]">يصوغ لك الإجابة من عنده بلغة واضحة وميسّرة</strong> دون سرد جامد، مع توثيق كل فكرة بمصدرها.
+                    </p>
                   </div>
 
-                  {/* Quick One-Tap Actions for the Selected Book (2x2 Grid on Mobile) */}
-                  <div className="space-y-1.5">
-                    <span className="text-[11px] font-bold opacity-85 block">أوامر سريعة للكتاب المحدد:</span>
-                    <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAiMode('book_summary');
-                          handleAskAI(
-                            `لخص لي كتاب ${aiScopedBook.name} ومنهجه وأبرز أبوابه وفصوله`,
-                            'book_summary',
-                            aiScopedBook
-                          );
-                        }}
-                        className="px-2.5 py-2 rounded-xl bg-[#d4af37] text-black text-xs font-bold flex items-center justify-center gap-1"
-                      >
-                        <Sparkles className="w-3.5 h-3.5 shrink-0" />
-                        <span>لخص الكتاب</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAiMode('infographic');
-                          handleAskAI(
-                            `صمم لي صورة إنفوجرافيك تلخص كتاب ${aiScopedBook.name} وأبرز محاوره`,
-                            'infographic',
-                            aiScopedBook
-                          );
-                        }}
-                        className="px-2.5 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-xs font-bold flex items-center justify-center gap-1"
-                      >
-                        <ImageIcon className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                        <span>إنفوجرافيك للكتاب</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAiMode('presentation');
-                          handleAskAI(
-                            `اعمل عرض باوربوينت شامل لكتاب ${aiScopedBook.name}`,
-                            'presentation',
-                            aiScopedBook
-                          );
-                        }}
-                        className="px-2.5 py-2 rounded-xl bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/40 text-xs font-bold flex items-center justify-center gap-1"
-                      >
-                        <Presentation className="w-3.5 h-3.5 text-orange-400 shrink-0" />
-                        <span>عرض باوربوينت</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAiMode('lesson');
-                          handleAskAI(
-                            `اكتب لي درساً علمياً شاملاً مستخلصاً من كتاب ${aiScopedBook.name}`,
-                            'lesson',
-                            aiScopedBook
-                          );
-                        }}
-                        className="px-2.5 py-2 rounded-xl bg-white/5 hover:bg-[#d4af37]/15 border border-white/10 text-xs font-bold flex items-center justify-center gap-1"
-                      >
-                        <GraduationCap className="w-3.5 h-3.5 text-[#d4af37] shrink-0" />
-                        <span>درس من الكتاب</span>
-                      </button>
+                  {/* Qaf-Style Conversational Question Chips */}
+                  <div className="space-y-2">
+                    <span className="text-xs font-bold text-[#d4af37] px-1 block">
+                      أسئلة حوارية مقترحة (اضغط للبدء الفوري):
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {[
+                        {
+                          label: 'ما هي شروط التوبة النصوح وكيف تبرأ الذمة من حقوق العباد؟',
+                          mode: 'chat' as AIChatMode,
+                          badge: 'حوار فقهي وتزكوي',
+                        },
+                        {
+                          label: 'ما حكم زكاة الذهب الملبوس وما شروط وجوبها؟',
+                          mode: 'chat' as AIChatMode,
+                          badge: 'فقه الزكاة',
+                        },
+                        {
+                          label: 'اشرح لي مفهوم الولاية والبراءة وضوابطهما بأسلوب مبسط',
+                          mode: 'chat' as AIChatMode,
+                          badge: 'العقيدة والأخلاق',
+                        },
+                        {
+                          label: 'كيف أحقق الخشوع وحضور القلب في الصلاة؟',
+                          mode: 'chat' as AIChatMode,
+                          badge: 'فقه الصلاة',
+                        },
+                        {
+                          label: 'لخص لي كتاب قواعد الإسلام للإمام الجيطالي وأبرز أبوابه',
+                          mode: 'book_summary' as AIChatMode,
+                          badge: 'ملخص كتاب',
+                        },
+                        {
+                          label: 'حدثني عن نظام العزابة ودوره التعليمي والحضاري',
+                          mode: 'chat' as AIChatMode,
+                          badge: 'تراث وتاريخ',
+                        },
+                      ].map((qItem) => (
+                        <button
+                          key={qItem.label}
+                          type="button"
+                          onClick={() => {
+                            setAiMode(qItem.mode);
+                            handleAskAI(qItem.label, qItem.mode);
+                          }}
+                          className={`text-right p-3.5 rounded-2xl border hover:border-[#d4af37] transition flex items-start justify-between gap-2.5 ${themeClasses.cardBg}`}
+                        >
+                          <div className="space-y-1 min-w-0 flex-1">
+                            <span className="inline-block px-2 py-0.5 rounded-md bg-[#d4af37]/15 text-[#d4af37] font-bold text-[10px]">
+                              {qItem.badge}
+                            </span>
+                            <p className="font-bold text-xs sm:text-sm leading-relaxed break-words">
+                              {qItem.label}
+                            </p>
+                          </div>
+                          <ChevronLeft className="w-4 h-4 text-[#d4af37] shrink-0 mt-1" />
+                        </button>
+                      ))}
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="relative">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                    <div className="flex items-start sm:items-center gap-2 text-xs">
-                      <BookOpen className="w-4 h-4 text-[#d4af37] shrink-0 mt-0.5 sm:mt-0" />
-                      <span className="font-bold leading-relaxed break-words">
-                        نطاق المحادثة: جميع كتب الموسوعة (أو اختر كتاباً محدداً لتلخيصه ومناقشته وحده)
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowAiBookPicker((p) => !p)}
-                      className="w-full sm:w-auto px-3 py-2 rounded-xl bg-[#d4af37]/15 hover:bg-[#d4af37]/25 border border-[#d4af37]/40 text-[#d4af37] text-xs font-bold flex items-center justify-center gap-1.5 shrink-0 transition"
-                    >
-                      <BookOpen className="w-3.5 h-3.5 shrink-0" />
-                      <span>{showAiBookPicker ? 'إغلاق قائمة الكتب' : 'تحديد كتاب معين للنقاش أو التلخيص'}</span>
-                    </button>
-                  </div>
+                /* Active Multi-Turn Qaf-Style Chat Stream */
+                <div className="space-y-4">
+                  {aiMessages.map((msg) => {
+                    if (msg.role === 'user') {
+                      return (
+                        <div key={msg.id} className="flex justify-start">
+                          <div className="w-full sm:max-w-[85%] p-3.5 sm:p-4 rounded-2xl rounded-tr-xs bg-[#d4af37]/15 border border-[#d4af37]/40 space-y-1.5">
+                            <div className="flex items-center justify-between gap-2 text-[11px]">
+                              <span className="font-extrabold text-[#d4af37]">أنت</span>
+                              {msg.scopedBookName && (
+                                <span className="px-2 py-0.5 rounded-md bg-black/30 text-[#d4af37] font-bold text-[10px] truncate max-w-[200px]">
+                                  {msg.scopedBookName}
+                                </span>
+                              )}
+                            </div>
+                            <p className="font-bold text-sm sm:text-base leading-relaxed break-words">
+                              {msg.content}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    }
 
-                  {showAiBookPicker && (
-                    <div
-                      className={`mt-2.5 p-3 rounded-2xl border shadow-xl space-y-2.5 ${themeClasses.cardBg}`}
-                    >
-                      <input
-                        type="search"
-                        value={aiBookPickerQuery}
-                        onChange={(e) => setAiBookPickerQuery(e.target.value)}
-                        placeholder="ابحث عن اسم الكتاب أو المؤلف لحصر الدردشة فيه أو تلخيصه..."
-                        className={`w-full px-3 py-2.5 rounded-xl border text-xs focus:border-[#d4af37] focus:outline-none ${themeClasses.inputBg}`}
-                      />
-                      <div className="max-h-60 overflow-y-auto space-y-1.5">
-                        {aiBookPickerOptions.map((b) => (
-                          <div
-                            key={b.id}
-                            className="w-full p-2.5 rounded-xl bg-black/10 hover:bg-[#d4af37]/10 border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs transition"
-                          >
-                            <div className="min-w-0 flex-1">
-                              <div className="font-bold break-words leading-snug">{b.title}</div>
-                              <div className="text-[11px] opacity-75 break-words mt-0.5">
-                                {b.author} • {b.category}
+                    const resp = msg.response;
+                    if (!resp) return null;
+
+                    const ansCopyKey = `${msg.id}-answer`;
+                    const fullCopyKey = `${msg.id}-full`;
+
+                    const isLastAssistant =
+                      msg.role === 'assistant' &&
+                      aiMessages.map((m) => m.id).lastIndexOf(msg.id) ===
+                        aiMessages.map((m) => m.role).lastIndexOf('assistant');
+
+                    const renderInlineRichText = (lineText: string) => {
+                      const tokens = lineText.split(
+                        /(\*\*[^*]+\*\*|\*\([^)]+\)\*|﴿[^﴾]+﴾|\[منصوص في المصدر\]|\[استنتاج تحليلي مستخلص\]|\[استنتاج تحليلي\])/g
+                      );
+                      return tokens.map((tok, tIdx) => {
+                        if (!tok) return null;
+                        if (tok.startsWith('**') && tok.endsWith('**') && tok.length > 4) {
+                          return (
+                            <strong key={tIdx} className="font-extrabold text-[#d4af37]">
+                              {tok.slice(2, -2)}
+                            </strong>
+                          );
+                        }
+                        if (tok === '[منصوص في المصدر]') {
+                          return (
+                            <span
+                              key={tIdx}
+                              className="inline-block mx-1 px-2 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 text-[11px] font-sans font-bold"
+                            >
+                              ✓ منصوص في المصدر
+                            </span>
+                          );
+                        }
+                        if (
+                          tok === '[استنتاج تحليلي مستخلص]' ||
+                          tok === '[استنتاج تحليلي]'
+                        ) {
+                          return (
+                            <span
+                              key={tIdx}
+                              className="inline-block mx-1 px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[11px] font-sans font-bold"
+                            >
+                              💡 استنتاج تحليلي مستخلص
+                            </span>
+                          );
+                        }
+                        if (tok.startsWith('*(') && tok.endsWith(')*') && tok.length > 4) {
+                          return (
+                            <span
+                              key={tIdx}
+                              className="inline-block mx-1 px-2 py-0.5 rounded-md bg-[#d4af37]/10 border border-[#d4af37]/25 text-[#d4af37] text-xs font-sans font-bold"
+                            >
+                              {tok.slice(1, -1)}
+                            </span>
+                          );
+                        }
+                        if (tok.startsWith('﴿') && tok.endsWith('﴾')) {
+                          return (
+                            <span
+                              key={tIdx}
+                              className="inline mx-0.5 px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-bold"
+                            >
+                              {tok}
+                            </span>
+                          );
+                        }
+                        return <React.Fragment key={tIdx}>{tok}</React.Fragment>;
+                      });
+                    };
+
+                    const formattedLines = String(msg.content || resp?.answer || '')
+                      .replace(/^\s*═+\s*$/gm, '')
+                      .replace(/^\s*─+\s*$/gm, '')
+                      .split('\n');
+
+                    return (
+                      <div key={msg.id} className="space-y-3">
+                        <div
+                          className={`p-3.5 sm:p-5 rounded-3xl rounded-tl-xs border space-y-3.5 overflow-hidden ${themeClasses.cardBg}`}
+                        >
+                          {/* Assistant Message Header - Responsive Stacking */}
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-white/10 pb-2.5">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-[#d4af37] to-[#9a7b1c] text-black flex items-center justify-center shrink-0">
+                                <Sparkles className="w-4 h-4" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-xs sm:text-sm font-extrabold text-[#d4af37]">
+                                    المساعد الذكي للموسوعة
+                                  </span>
+                                  {msg.isStreaming ? (
+                                    <span className="px-2 py-0.5 rounded-md bg-[#d4af37]/20 border border-[#d4af37]/40 text-[#d4af37] text-[10px] font-bold animate-pulse">
+                                      جاري الكتابة...
+                                    </span>
+                                  ) : (
+                                    <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold">
+                                      صياغة مؤصلة
+                                    </span>
+                                  )}
+                                  {msg.isStopped && (
+                                    <span className="px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-400 text-[10px] font-bold">
+                                      تم الإيقاف
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             </div>
-                            <div className="grid grid-cols-2 sm:flex items-center gap-1.5 w-full sm:w-auto shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const scoped = { id: b.id, name: b.title };
-                                  setAiScopedBook(scoped);
-                                  setShowAiBookPicker(false);
-                                  setAiMode('book_summary');
-                                  handleAskAI(
-                                    `لخص لي كتاب ${b.title} ومنهجه وأبرز أبوابه وفصوله`,
-                                    'book_summary',
-                                    scoped
-                                  );
-                                }}
-                                className="px-2.5 py-1.5 rounded-lg bg-[#d4af37] text-black font-bold text-[11px] text-center"
-                              >
-                                لخص الكتاب
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setAiScopedBook({ id: b.id, name: b.title });
-                                  setShowAiBookPicker(false);
-                                }}
-                                className="px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 font-bold text-[11px] text-center"
-                              >
-                                حصر النقاش فيه
-                              </button>
+
+                            <div className="flex items-center gap-1.5 self-end sm:self-auto flex-wrap justify-end">
+                              {resp && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCopyAiResult(resp, 'answer', msg.id)}
+                                    className="px-2.5 py-1.5 rounded-xl bg-[#d4af37] text-black font-bold text-[11px] flex items-center gap-1 shadow-xs active:scale-95 transition"
+                                  >
+                                    {copiedAiMode === ansCopyKey ? (
+                                      <>
+                                        <Check className="w-3.5 h-3.5 shrink-0" />
+                                        <span>تم</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Copy className="w-3.5 h-3.5 shrink-0" />
+                                        <span>نسخ</span>
+                                      </>
+                                    )}
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCopyAiResult(resp, 'full', msg.id)}
+                                    className="px-2.5 py-1.5 rounded-xl bg-[#d4af37]/15 border border-[#d4af37]/40 text-[#d4af37] font-bold text-[11px] flex items-center gap-1 active:scale-95 transition"
+                                  >
+                                    {copiedAiMode === fullCopyKey ? (
+                                      <>
+                                        <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                        <span>تم</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Copy className="w-3.5 h-3.5 shrink-0" />
+                                        <span>مع المراجع</span>
+                                      </>
+                                    )}
+                                  </button>
+                                </>
+                              )}
+
+                              {isLastAssistant && !msg.isStreaming && (
+                                <button
+                                  type="button"
+                                  onClick={handleRegenerateLastAI}
+                                  className="px-2 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-xs font-bold flex items-center gap-1 transition"
+                                  title="إعادة التوليد"
+                                >
+                                  <RotateCcw className="w-3.5 h-3.5 text-[#d4af37]" />
+                                  <span className="hidden sm:inline">إعادة</span>
+                                </button>
+                              )}
+
+                              {resp && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleToggleBookmark({
+                                      id: `ai-${resp.question.slice(0, 40)}`,
+                                      type: 'ai',
+                                      title: resp.question,
+                                      subtitle: `${resp.modeLabel || 'حوار علمي'} (${
+                                        resp.sources.length
+                                      } مصادر)`,
+                                      fullText: resp.answer,
+                                    })
+                                  }
+                                  className={`p-1.5 rounded-xl border shrink-0 transition ${
+                                    isBookmarked(`ai-${resp.question.slice(0, 40)}`)
+                                      ? 'bg-[#d4af37]/20 border-[#d4af37] text-[#d4af37]'
+                                      : 'border-white/15 opacity-80'
+                                  }`}
+                                  title="حفظ في المفضلة"
+                                >
+                                  <Bookmark className="w-4 h-4 fill-current" />
+                                </button>
+                              )}
                             </div>
                           </div>
-                        ))}
+
+                          {/* Live Thinking Status if streaming with no text yet */}
+                          {msg.isStreaming && !msg.content && (
+                            <div className="p-3 rounded-xl bg-[#d4af37]/10 border border-[#d4af37]/25 flex items-center gap-2.5 text-xs text-[#d4af37] animate-pulse">
+                              <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                              <span>{msg.statusMessage || 'جاري استيعاب المسألة ومطابقة المصادر في الموسوعة...'}</span>
+                            </div>
+                          )}
+
+                          {/* Self-Authored Analytical Answer Prose with Markdown Tables & Blocks */}
+                          <div className="font-naskh text-base sm:text-lg leading-[2.0] text-right break-words overflow-x-hidden select-text space-y-2.5">
+                            {formattedLines.map((rawLine, lIdx) => {
+                              const line = rawLine.trim();
+                              if (!line) {
+                                return <div key={lIdx} className="h-1" />;
+                              }
+                              if (line.startsWith('### ')) {
+                                const headingText = line.replace(/^###\s+/, '');
+                                return (
+                                  <h4
+                                    key={lIdx}
+                                    className="font-sans font-extrabold text-sm sm:text-base text-[#d4af37] pt-2 pb-1 border-b border-[#d4af37]/20 flex items-center gap-1.5"
+                                  >
+                                    <span>{headingText}</span>
+                                  </h4>
+                                );
+                              }
+                              if (line.startsWith('## ') || line.startsWith('# ')) {
+                                const headingText = line.replace(/^#+\s+/, '');
+                                return (
+                                  <h3
+                                    key={lIdx}
+                                    className="font-sans font-extrabold text-base sm:text-lg text-[#d4af37] pt-2 pb-1 border-b border-[#d4af37]/30"
+                                  >
+                                    {headingText}
+                                  </h3>
+                                );
+                              }
+                              // Callout blockquote (> ...)
+                              if (line.startsWith('>')) {
+                                const quoteText = line.replace(/^>\s*/, '');
+                                return (
+                                  <div
+                                    key={lIdx}
+                                    className="my-2 p-3 rounded-xl bg-[#d4af37]/10 border-r-4 border-[#d4af37] text-sm sm:text-base font-bold italic text-[#d4af37]"
+                                  >
+                                    {renderInlineRichText(quoteText)}
+                                  </div>
+                                );
+                              }
+                              // Markdown table row (| ... |)
+                              if (line.startsWith('|') && line.endsWith('|')) {
+                                if (line.replace(/[\s|:-]/g, '').length === 0) {
+                                  // Separator row
+                                  return null;
+                                }
+                                const cells = line
+                                  .slice(1, -1)
+                                  .split('|')
+                                  .map((c) => c.trim());
+                                const isHeaderRow =
+                                  lIdx < formattedLines.length - 1 &&
+                                  formattedLines[lIdx + 1]?.trim().startsWith('|') &&
+                                  formattedLines[lIdx + 1]?.trim().includes('---');
+
+                                return (
+                                  <div
+                                    key={lIdx}
+                                    className={`grid grid-cols-${cells.length} gap-2 p-2 rounded-lg my-1 border text-xs sm:text-sm font-sans ${
+                                      isHeaderRow
+                                        ? 'bg-[#d4af37]/20 border-[#d4af37]/50 font-extrabold text-[#d4af37]'
+                                        : 'bg-black/20 border-white/10'
+                                    }`}
+                                    style={{
+                                      gridTemplateColumns: `repeat(${cells.length}, minmax(0, 1fr))`,
+                                    }}
+                                  >
+                                    {cells.map((cell, cIdx) => (
+                                      <div key={cIdx} className="break-words px-1">
+                                        {renderInlineRichText(cell)}
+                                      </div>
+                                    ))}
+                                  </div>
+                                );
+                              }
+                              if (/^(?:•|-|\*|\d+[.-]|[١٢٣٤٥٦٧٨٩٠]+[.-])\s+/.test(line)) {
+                                return (
+                                  <div
+                                    key={lIdx}
+                                    className="pr-2.5 sm:pr-3.5 py-1 border-r-2 border-[#d4af37]/40 leading-[2.0]"
+                                  >
+                                    {renderInlineRichText(line)}
+                                  </div>
+                                );
+                              }
+                              return (
+                                <p key={lIdx} className="leading-[2.05]">
+                                  {renderInlineRichText(line)}
+                                </p>
+                              );
+                            })}
+
+                            {/* Streaming Typing Cursor Indicator */}
+                            {msg.isStreaming && (
+                              <span className="inline-block w-2.5 h-5 bg-[#d4af37] animate-pulse rounded-xs mr-1 align-middle" />
+                            )}
+                          </div>
+
+                          {/* Compact Clickable Source Chips (المصادر المعتمدة من الموسوعة) */}
+                          {resp && (resp.sources.length > 0 || resp.fatawaSources.length > 0) && (
+                            <div className="pt-3 border-t border-white/10 space-y-2">
+                              <span className="text-xs font-bold text-[#d4af37] flex items-center gap-1.5">
+                                <BookOpen className="w-3.5 h-3.5 shrink-0" />
+                                <span>
+                                  المصادر المعتمدة التي استند إليها المساعد (اضغط لقراءة الصفحة في الكتاب):
+                                </span>
+                              </span>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                {resp.sources.map((src, i) => (
+                                  <button
+                                    key={`${src.book_id}-${src.page_id}-${i}`}
+                                    type="button"
+                                    onClick={() => {
+                                      setReaderBookId(src.book_id);
+                                      setReaderPageId(src.page_id);
+                                      setReaderHighlight(resp.searchQueryUsed);
+                                    }}
+                                    className="text-right p-2.5 rounded-xl bg-black/20 hover:bg-[#d4af37]/15 border border-white/10 hover:border-[#d4af37]/50 flex items-center justify-between gap-2 transition"
+                                  >
+                                    <div className="min-w-0 flex-1">
+                                      <div className="font-bold text-xs text-[#d4af37] truncate">
+                                        [{i + 1}] {src.book_name}
+                                      </div>
+                                      <div className={`text-[10px] truncate ${themeClasses.mutedText}`}>
+                                        {src.author_name}
+                                      </div>
+                                    </div>
+                                    <span className="px-2 py-1 rounded-lg bg-[#d4af37]/15 text-[#d4af37] font-bold text-[11px] shrink-0">
+                                      ج{src.part || 1}/ص{src.page_number}
+                                    </span>
+                                  </button>
+                                ))}
+
+                                {resp.fatawaSources.map((f) => (
+                                  <button
+                                    key={f.fatwa_id}
+                                    type="button"
+                                    onClick={() => setSelectedFatwaId(f.fatwa_id)}
+                                    className="text-right p-2.5 rounded-xl bg-black/20 hover:bg-emerald-500/15 border border-white/10 hover:border-emerald-500/50 flex items-center justify-between gap-2 transition"
+                                  >
+                                    <div className="min-w-0 flex-1">
+                                      <div className="font-bold text-xs text-emerald-400 truncate">
+                                        {f.title}
+                                      </div>
+                                      <div className={`text-[10px] truncate ${themeClasses.mutedText}`}>
+                                        المفتي: {f.mufti}
+                                      </div>
+                                    </div>
+                                    <span className="px-2 py-1 rounded-lg bg-emerald-500/15 text-emerald-400 font-bold text-[11px] shrink-0">
+                                      فتوى #{f.fatwa_id}
+                                    </span>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Interactive Artifact Studio: Infographic PNG, PowerPoint PPTX, Word DOC, and PDF */}
+                          {resp && <ChatArtifactStudio response={resp} themeMode={themeMode} />}
+
+                          {/* One-Tap Follow-Up Suggestions */}
+                          {resp && resp.followUpSuggestions && resp.followUpSuggestions.length > 0 && (
+                            <div className="pt-2.5 border-t border-white/10 space-y-2">
+                              <span className="text-xs font-bold text-[#d4af37] block">
+                                أسئلة مقترحة لمتابعة الحوار:
+                              </span>
+                              <div className="flex flex-wrap gap-1.5">
+                                {resp.followUpSuggestions.map((sug) => (
+                                  <button
+                                    key={sug}
+                                    type="button"
+                                    onClick={() =>
+                                      handleAskAI(
+                                        sug,
+                                        'auto',
+                                        resp.matchedBook
+                                          ? { id: resp.matchedBook.id, name: resp.matchedBook.title }
+                                          : aiScopedBook
+                                      )
+                                    }
+                                    className="text-right px-3 py-1.5 rounded-xl bg-white/5 hover:bg-[#d4af37]/15 border border-white/10 hover:border-[#d4af37]/40 text-xs font-medium leading-relaxed break-words transition"
+                                  >
+                                    {sug}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
+                    );
+                  })}
+
+                  {/* Live AI Synthesizing Status Bar if streaming */}
+                  {aiLoading && aiLiveStatus && (
+                    <div className={`p-4 rounded-2xl border flex items-center justify-between gap-3 ${themeClasses.cardBg}`}>
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div className="w-8 h-8 rounded-xl bg-[#d4af37]/20 border border-[#d4af37]/40 flex items-center justify-center shrink-0">
+                          <Loader2 className="w-4 h-4 animate-spin text-[#d4af37]" />
+                        </div>
+                        <div className="space-y-0.5 min-w-0 flex-1">
+                          <div className="text-xs font-extrabold text-[#d4af37] truncate">
+                            {aiLiveStatus}
+                          </div>
+                          <div className={`text-[11px] truncate ${themeClasses.mutedText}`}>
+                            يتم استخلاص المعاني والمقارنة بين أمهات الكتب وصياغتها بأسلوب ذاتي
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleStopAI}
+                        className="px-3 py-1.5 rounded-xl bg-red-500/15 hover:bg-red-500/25 border border-red-500/40 text-red-400 font-bold text-xs flex items-center gap-1.5 shrink-0 transition"
+                      >
+                        <Square className="w-3.5 h-3.5 fill-current" />
+                        <span>إيقاف التوليد</span>
+                      </button>
                     </div>
                   )}
                 </div>
               )}
-            </div>
 
-            {/* Specialized Scholarly Modes Selector + Question Input Box */}
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleAskAI();
-              }}
-              className={`p-3.5 rounded-2xl border space-y-3.5 ${themeClasses.cardBg}`}
-            >
-              {/* Symmetrical 2-Column Mobile Grid for Mode Selector Buttons */}
-              <div className="space-y-2">
-                <span className="text-xs font-bold text-[#d4af37] block">
-                  اختر نوع المهمة أو الملف المطلوب (أو اكتب طلبك مباشرة):
-                </span>
-                <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-1.5">
-                  {[
-                    { id: 'auto', label: 'تلقائي شامل', icon: Sparkles },
-                    { id: 'chat', label: 'نقاش وحوار عام', icon: MessageSquareQuote },
-                    { id: 'infographic', label: 'صورة إنفوجرافيك', icon: ImageIcon },
-                    { id: 'presentation', label: 'عرض باوربوينت', icon: Presentation },
-                    { id: 'document', label: 'ملف وورد / PDF', icon: FileText },
-                    { id: 'book_summary', label: 'ملخص كتاب', icon: BookOpen },
-                    { id: 'khutbah', label: 'خطبة جمعة', icon: Mic },
-                    { id: 'lesson', label: 'درس علمي', icon: GraduationCap },
-                    { id: 'tafsir_hadith', label: 'تفسير وحديث', icon: ShieldCheck },
-                    { id: 'article', label: 'مقال علمي', icon: FileText },
-                  ].map((m) => {
-                    const MIcon = m.icon;
-                    const active = aiMode === m.id;
-                    return (
-                      <button
-                        key={m.id}
-                        type="button"
-                        onClick={() => setAiMode(m.id as AIChatMode)}
-                        className={`px-2.5 py-2 min-h-[38px] rounded-xl text-xs font-bold flex items-center justify-center sm:justify-start gap-1.5 border transition ${
-                          active
-                            ? 'bg-[#d4af37] text-black border-[#d4af37] shadow-xs'
-                            : 'bg-white/5 border-white/10 hover:border-[#d4af37]/40'
-                        }`}
-                      >
-                        <MIcon className="w-3.5 h-3.5 shrink-0" />
-                        <span className="truncate">{m.label}</span>
-                      </button>
-                    );
-                  })}
+              {/* Error Alert */}
+              {aiError && (
+                <div className="p-3.5 rounded-2xl bg-red-500/15 border border-red-500/30 text-red-400 text-xs space-y-2">
+                  <p className="font-bold break-words">{aiError}</p>
+                  <button
+                    onClick={() => setIsApiModalOpen(true)}
+                    className="px-3 py-1.5 rounded-xl bg-[#d4af37] text-black font-bold text-xs inline-flex items-center gap-1.5"
+                  >
+                    <Key className="w-3.5 h-3.5" />
+                    <span>إعدادات ربط Gemini و Claude</span>
+                  </button>
                 </div>
-              </div>
+              )}
 
-              <textarea
-                rows={3}
-                value={aiQuestion}
-                onChange={(e) => setAiQuestion(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    if (aiQuestion.trim() && !aiLoading) {
-                      handleAskAI();
-                    }
+              {/* 3. Bottom Sticky Chat Composer Bar */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (aiQuestion.trim() && !aiLoading) {
+                    handleAskAI();
                   }
                 }}
-                placeholder={
-                  aiScopedBook
-                    ? `اطلب أي شيء من كتاب «${aiScopedBook.name}»: ملخص، صورة إنفوجرافيك، عرض باوربوينت، ملف وورد/PDF، أو سؤال مباشر...`
-                    : aiMode === 'infographic'
-                    ? 'اكتب الموضوع لتصميم صورة إنفوجرافيك عالية الدقة له (مثال: صمم لي صورة إنفوجرافيك عن أركان التوبة)...'
-                    : aiMode === 'presentation'
-                    ? 'اكتب الموضوع لإعداد شرائح عرض باوربوينت .pptx له (مثال: اعمل عرض باوربوينت عن زكاة الذهب)...'
-                    : aiMode === 'document'
-                    ? 'اكتب الموضوع لتجهيز ملف وورد Word وملف PDF متكامل له...'
-                    : aiMode === 'book_summary'
-                    ? 'اكتب اسم الكتاب لتلخيصه (مثال: لخص لي كتاب قواعد الإسلام للإمام الجيطالي)...'
-                    : aiMode === 'khutbah'
-                    ? 'اكتب موضوع الخطبة (مثال: اكتب لي خطبة جمعة عن بر الوالدين وصلة الأرحام)...'
-                    : aiMode === 'lesson'
-                    ? 'اكتب موضوع الدرس (مثال: اكتب لي درساً شاملاً في أحكام التوبة وشروطها)...'
-                    : 'تحدث مع المساعد في كل شيء داخل الموسوعة: اطلب صورة إنفوجرافيك، عرض باوربوينت، ملف وورد أو PDF، ملخص كتاب، خطبة جمعة، أو درساً شاملاً...'
-                }
-                className={`w-full p-3 rounded-xl border text-sm leading-relaxed focus:border-[#d4af37] focus:outline-none resize-none ${themeClasses.inputBg}`}
-              />
+                className={`sticky bottom-16 z-20 p-3 rounded-2xl border shadow-2xl space-y-2.5 backdrop-blur-md ${themeClasses.cardBg}`}
+              >
+                {/* Compact Horizontal Mode & Scope Strip */}
+                <div className="flex items-center justify-between gap-2 overflow-x-auto no-scrollbar pb-0.5">
+                  <div className="flex items-center gap-1 shrink-0">
+                    {[
+                      { id: 'auto', label: 'حوار ذكي مباشر', icon: Sparkles },
+                      { id: 'book_summary', label: 'ملخص كتاب', icon: BookOpen },
+                      { id: 'khutbah', label: 'خطبة جمعة', icon: Mic },
+                      { id: 'lesson', label: 'درس علمي', icon: GraduationCap },
+                      { id: 'infographic', label: 'إنفوجرافيك', icon: ImageIcon },
+                      { id: 'presentation', label: 'باوربوينت', icon: Presentation },
+                      { id: 'document', label: 'وورد / PDF', icon: FileText },
+                    ].map((m) => {
+                      const MIcon = m.icon;
+                      const active = aiMode === m.id || (m.id === 'auto' && aiMode === 'chat');
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => setAiMode(m.id as AIChatMode)}
+                          className={`px-2.5 py-1 rounded-xl text-[11px] font-bold flex items-center gap-1 border shrink-0 transition ${
+                            active
+                              ? 'bg-[#d4af37] text-black border-[#d4af37]'
+                              : 'bg-white/5 border-white/10 opacity-80 hover:opacity-100'
+                          }`}
+                        >
+                          <MIcon className="w-3 h-3 shrink-0" />
+                          <span>{m.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
 
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                {!aiScopedBook ? (
-                  <div className="space-y-1.5 sm:space-y-0 sm:flex sm:items-center sm:gap-1.5 text-xs w-full sm:w-auto">
-                    <span className="opacity-85 font-bold block sm:inline sm:ml-1">نطاق البحث:</span>
-                    <div className="grid grid-cols-3 sm:flex gap-1.5">
+                  {!aiScopedBook && (
+                    <div className="flex items-center gap-1 shrink-0 border-r border-white/10 pr-2">
                       {[
-                        { id: 'all', label: 'الكتب والفتاوى' },
-                        { id: 'books', label: 'المتون فقط' },
-                        { id: 'fatawa', label: 'الفتاوى فقط' },
+                        { id: 'all', label: 'الكل' },
+                        { id: 'books', label: 'الكتب' },
+                        { id: 'fatawa', label: 'الفتاوى' },
                       ].map((s) => (
                         <button
                           key={s.id}
                           type="button"
                           onClick={() => setAiScope(s.id as any)}
-                          className={`px-2 py-1.5 rounded-xl border text-center transition ${
+                          className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition ${
                             aiScope === s.id
-                              ? 'bg-[#d4af37]/20 border-[#d4af37] text-[#d4af37] font-bold'
-                              : 'border-white/10 opacity-80'
+                              ? 'bg-[#d4af37]/20 border-[#d4af37] text-[#d4af37]'
+                              : 'border-transparent opacity-70'
                           }`}
                         >
                           {s.label}
                         </button>
                       ))}
                     </div>
-                  </div>
-                ) : (
-                  <span className="text-xs font-bold text-[#d4af37] break-words">
-                    ✓ الإجابة والملفات تعتمد ١٠٠٪ على كتاب «{aiScopedBook.name}» وحده
-                  </span>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={aiLoading || !aiQuestion.trim()}
-                  className="w-full sm:w-auto px-5 py-3 rounded-xl bg-gradient-to-l from-[#d4af37] to-[#b89225] text-black font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 disabled:opacity-40 shadow-md active:scale-98 transition"
-                >
-                  {aiLoading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-                      <span>جاري استقراء الموسوعة وتوليد المخرجات...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Send className="w-4 h-4 shrink-0" />
-                      <span>إرسال وتوليد من الموسوعة</span>
-                    </>
                   )}
-                </button>
-              </div>
-            </form>
-
-            {/* Starter Prompts Grid across all Capabilities if conversation is empty */}
-            {aiMessages.length === 0 && !aiLoading && (
-              <div className={`p-3.5 sm:p-4 rounded-2xl border space-y-3 ${themeClasses.cardBg}`}>
-                <h3 className="text-xs font-bold text-[#d4af37]">
-                  نماذج جاهزة للتجربة الفورية (اضغط على أي نموذج لتشغيله):
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                  {[
-                    {
-                      tag: '🎨 صورة إنفوجرافيك (PNG)',
-                      mode: 'infographic' as AIChatMode,
-                      prompt: 'صمم لي صورة إنفوجرافيك عن بر الوالدين وصلة الأرحام من كتب الموسوعة',
-                    },
-                    {
-                      tag: '📊 عرض باوربوينت (.pptx)',
-                      mode: 'presentation' as AIChatMode,
-                      prompt: 'اعمل عرض باوربوينت عن أحكام الزكاة وشروطها من الموسوعة',
-                    },
-                    {
-                      tag: '📝 ملف وورد و PDF',
-                      mode: 'document' as AIChatMode,
-                      prompt: 'أعطني ملف وورد و PDF عن التوبة النصوح وشروطها من كتب الموسوعة',
-                    },
-                    {
-                      tag: '📘 ملخص كتاب شامل',
-                      mode: 'book_summary' as AIChatMode,
-                      prompt: 'لخص لي كتاب قواعد الإسلام للإمام الجيطالي ومنهجه وأبرز أبوابه',
-                    },
-                    {
-                      tag: '🕌 خطبة جمعة منبرية',
-                      mode: 'khutbah' as AIChatMode,
-                      prompt: 'اكتب لي خطبة جمعة بأسلوب الخطبة عن الأمانة والصدق في المعاملات',
-                    },
-                    {
-                      tag: '🎓 درس علمي شامل',
-                      mode: 'lesson' as AIChatMode,
-                      prompt: 'اكتب لي درساً شاملاً في موضوع نظام العزابة ودوره التعليمي',
-                    },
-                  ].map((item) => (
-                    <button
-                      key={item.prompt}
-                      type="button"
-                      onClick={() => {
-                        setAiMode(item.mode);
-                        handleAskAI(item.prompt, item.mode);
-                      }}
-                      className="text-right p-3 rounded-xl bg-white/5 hover:bg-[#d4af37]/15 border border-white/10 hover:border-[#d4af37]/40 text-xs flex flex-col gap-1.5 transition"
-                    >
-                      <div className="flex items-center justify-between w-full gap-2">
-                        <span className="px-2 py-0.5 rounded-md bg-[#d4af37]/20 text-[#d4af37] font-bold text-[10px]">
-                          {item.tag}
-                        </span>
-                        <ChevronLeft className="w-4 h-4 text-[#d4af37] shrink-0" />
-                      </div>
-                      <span className="font-bold leading-relaxed break-words">{item.prompt}</span>
-                    </button>
-                  ))}
                 </div>
-              </div>
-            )}
 
-            {/* Error Alert */}
-            {aiError && (
-              <div className="p-4 rounded-2xl bg-red-500/15 border border-red-500/30 text-red-400 text-xs space-y-2">
-                <p className="font-bold break-words">{aiError}</p>
-                <button
-                  onClick={() => setIsApiModalOpen(true)}
-                  className="px-3 py-2 rounded-xl bg-[#d4af37] text-black font-bold text-xs inline-flex items-center gap-1.5"
-                >
-                  <Key className="w-3.5 h-3.5" />
-                  <span>فتح إعدادات ربط Gemini و Claude</span>
-                </button>
-              </div>
-            )}
-
-            {/* Multi-Turn Conversation Thread (Realistic Gemini / Claude Style Chat) */}
-            {(aiMessages.length > 0 || aiLoading) && (
-              <div className="space-y-4">
-                {aiMessages.map((msg) => {
-                  if (msg.role === 'user') {
-                    return (
-                      <div
-                        key={msg.id}
-                        className="p-3.5 sm:p-4 rounded-2xl bg-[#d4af37]/15 border border-[#d4af37]/40 space-y-1.5"
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
-                          <span className="font-extrabold text-[#d4af37] flex items-center gap-1.5">
-                            <span>أنت (السائل)</span>
-                          </span>
-                          {msg.scopedBookName && (
-                            <span className="px-2 py-0.5 rounded-md bg-black/20 text-[#d4af37] font-bold break-words">
-                              كتاب: {msg.scopedBookName}
-                            </span>
-                          )}
-                        </div>
-                        <p className="font-bold text-sm sm:text-base leading-relaxed break-words">{msg.content}</p>
-                      </div>
-                    );
-                  }
-
-                  const resp = msg.response;
-                  if (!resp) return null;
-
-                  const ansCopyKey = `${msg.id}-answer`;
-                  const fullCopyKey = `${msg.id}-full`;
-
-                  // Render inline formatting: **bold**, *(citation)*, and ﴿Quranic verse﴾
-                  const renderInlineRichText = (lineText: string) => {
-                    const tokens = lineText.split(/(\*\*[^*]+\*\*|\*\([^)]+\)\*|﴿[^﴾]+﴾)/g);
-                    return tokens.map((tok, tIdx) => {
-                      if (!tok) return null;
-                      if (tok.startsWith('**') && tok.endsWith('**') && tok.length > 4) {
-                        return (
-                          <strong key={tIdx} className="font-extrabold text-[#d4af37]">
-                            {tok.slice(2, -2)}
-                          </strong>
-                        );
-                      }
-                      if (tok.startsWith('*(') && tok.endsWith(')*') && tok.length > 4) {
-                        return (
-                          <span
-                            key={tIdx}
-                            className="inline-block mx-1 px-2 py-0.5 rounded-md bg-[#d4af37]/10 border border-[#d4af37]/25 text-[#d4af37] text-xs sm:text-sm font-sans font-bold"
-                          >
-                            {tok.slice(1, -1)}
-                          </span>
-                        );
-                      }
-                      if (tok.startsWith('﴿') && tok.endsWith('﴾')) {
-                        return (
-                          <span
-                            key={tIdx}
-                            className="inline mx-0.5 px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-bold"
-                          >
-                            {tok}
-                          </span>
-                        );
-                      }
-                      return <React.Fragment key={tIdx}>{tok}</React.Fragment>;
-                    });
-                  };
-
-                  const formattedLines = String(resp.answer || '')
-                    .replace(/^\s*═+\s*$/gm, '')
-                    .replace(/^\s*─+\s*$/gm, '')
-                    .split('\n');
-
-                  return (
-                    <div key={msg.id} className="space-y-3">
-                      <div className={`p-3.5 sm:p-5 rounded-2xl border space-y-4 overflow-hidden ${themeClasses.cardBg}`}>
-                        {/* Top Action Bar for AI Assistant Identity, Copying & Bookmarking */}
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-white/10 pb-3">
-                          <div className="flex flex-wrap items-center gap-2 min-w-0">
-                            <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-[#d4af37] to-[#9a7b1c] text-black flex items-center justify-center shrink-0 shadow-xs">
-                              <Sparkles className="w-4 h-4" />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex flex-wrap items-center gap-1.5">
-                                <span className="text-xs sm:text-sm font-extrabold text-[#d4af37]">
-                                  المساعد الذكي للموسوعة
-                                </span>
-                                <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold">
-                                  {resp.modeLabel || 'صياغة ذكية مستندة للموسوعة'}
-                                </span>
-                              </div>
-                              <div className="text-[11px] opacity-80 mt-0.5">
-                                {resp.matchedBook ? (
-                                  <span>مستند حصرياً إلى كتاب: «{resp.matchedBook.title}»</span>
-                                ) : (
-                                  <span>
-                                    صياغة تحليلية مستندة إلى ({resp.sources.length}) مراجع من الكتب
-                                    {resp.fatawaSources.length > 0
-                                      ? ` و(${resp.fatawaSources.length}) فتاوى`
-                                      : ''}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-1.5 w-full sm:w-auto">
-                            <button
-                              type="button"
-                              onClick={() => handleCopyAiResult(resp, 'answer', msg.id)}
-                              className="flex-1 sm:flex-initial px-3 py-2 rounded-xl bg-[#d4af37] text-black font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition"
-                            >
-                              {copiedAiMode === ansCopyKey ? (
-                                <>
-                                  <Check className="w-3.5 h-3.5 shrink-0" />
-                                  <span>تم النسخ!</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Copy className="w-3.5 h-3.5 shrink-0" />
-                                  <span>نسخ الإجابة</span>
-                                </>
-                              )}
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => handleCopyAiResult(resp, 'full', msg.id)}
-                              className="flex-1 sm:flex-initial px-3 py-2 rounded-xl bg-[#d4af37]/15 border border-[#d4af37]/40 text-[#d4af37] font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition"
-                            >
-                              {copiedAiMode === fullCopyKey ? (
-                                <>
-                                  <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                                  <span>تم النسخ!</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Copy className="w-3.5 h-3.5 shrink-0" />
-                                  <span>نسخ مع المصادر</span>
-                                </>
-                              )}
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleToggleBookmark({
-                                  id: `ai-${resp.question.slice(0, 40)}`,
-                                  type: 'ai',
-                                  title: resp.question,
-                                  subtitle: `${resp.modeLabel || 'حوار علمي'} (${
-                                    resp.sources.length
-                                  } مصادر)`,
-                                  fullText: resp.answer,
-                                })
-                              }
-                              className={`p-2 rounded-xl border shrink-0 transition ${
-                                isBookmarked(`ai-${resp.question.slice(0, 40)}`)
-                                  ? 'bg-[#d4af37]/20 border-[#d4af37] text-[#d4af37]'
-                                  : 'border-white/15 opacity-80'
-                              }`}
-                              title="حفظ في المفضلة"
-                            >
-                              <Bookmark className="w-4 h-4 fill-current" />
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Rich Conversational AI Answer Renderer (Headings, Bold Concepts, Quranic Verses & Citations) */}
-                        <div className="font-naskh text-base sm:text-lg leading-[2.0] sm:leading-[2.1] text-right break-words overflow-x-hidden select-text space-y-2.5">
-                          {formattedLines.map((rawLine, lIdx) => {
-                            const line = rawLine.trim();
-                            if (!line) {
-                              return <div key={lIdx} className="h-1" />;
-                            }
-                            if (line.startsWith('### ')) {
-                              const headingText = line.replace(/^###\s+/, '');
-                              return (
-                                <h4
-                                  key={lIdx}
-                                  className="font-sans font-extrabold text-sm sm:text-base text-[#d4af37] pt-2 pb-1 border-b border-[#d4af37]/20 flex items-center gap-1.5"
-                                >
-                                  <span>{headingText}</span>
-                                </h4>
-                              );
-                            }
-                            if (line.startsWith('## ') || line.startsWith('# ')) {
-                              const headingText = line.replace(/^#+\s+/, '');
-                              return (
-                                <h3
-                                  key={lIdx}
-                                  className="font-sans font-extrabold text-base sm:text-lg text-[#d4af37] pt-2 pb-1 border-b border-[#d4af37]/30"
-                                >
-                                  {headingText}
-                                </h3>
-                              );
-                            }
-                            if (/^(?:•|-|\*|\d+[.-]|[١٢٣٤٥٦٧٨٩٠]+[.-])\s+/.test(line)) {
-                              return (
-                                <div
-                                  key={lIdx}
-                                  className="pr-2 sm:pr-3 py-1 border-r-2 border-[#d4af37]/35 leading-[2.0]"
-                                >
-                                  {renderInlineRichText(line)}
-                                </div>
-                              );
-                            }
-                            return (
-                              <p key={lIdx} className="leading-[2.05]">
-                                {renderInlineRichText(line)}
-                              </p>
-                            );
-                          })}
-                        </div>
-
-                        {/* Interactive Artifact Studio: Infographic PNG, PowerPoint PPTX, Word DOC, and PDF */}
-                        <ChatArtifactStudio response={resp} themeMode={themeMode} />
-
-                        {/* Contextual Follow-Up Suggestions */}
-                        {resp.followUpSuggestions && resp.followUpSuggestions.length > 0 && (
-                          <div className="pt-3 border-t border-white/10 space-y-2">
-                            <span className="text-xs font-bold text-[#d4af37] block">
-                              تابع النقاش مع المساعد الذكي (اضغط على أي سؤال أو اكتب سؤالك بالأسفل):
-                            </span>
-                            <div className="grid grid-cols-1 sm:flex sm:flex-wrap gap-1.5">
-                              {resp.followUpSuggestions.map((sug) => (
-                                <button
-                                  key={sug}
-                                  type="button"
-                                  onClick={() =>
-                                    handleAskAI(
-                                      sug,
-                                      'auto',
-                                      resp.matchedBook
-                                        ? { id: resp.matchedBook.id, name: resp.matchedBook.title }
-                                        : aiScopedBook
-                                    )
-                                  }
-                                  className="w-full sm:w-auto text-right px-3 py-2 rounded-xl bg-white/5 hover:bg-[#d4af37]/15 border border-white/10 hover:border-[#d4af37]/40 text-xs font-medium leading-relaxed break-words transition"
-                                >
-                                  {sug}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Clickable Book Sources Used */}
-                        {resp.sources.length > 0 && (
-                          <div className="pt-3 border-t border-white/10 space-y-2">
-                            <h3 className="text-xs font-bold text-[#d4af37] flex items-center gap-1.5">
-                              <BookOpen className="w-4 h-4 shrink-0" />
-                              <span>
-                                المراجع التي استند إليها المساعد في صياغة الإجابة (اضغط لفتح الصفحة في الكتاب):
-                              </span>
-                            </h3>
-                            <div className="grid grid-cols-1 gap-2">
-                              {resp.sources.map((src, i) => {
-                                const isPrinted =
-                                  src.numbering === 'printed' ||
-                                  src.citable === true ||
-                                  src.numbering_declared === 'موافق للمطبوع';
-                                return (
-                                  <div
-                                    key={`${src.book_id}-${src.page_id}-${i}`}
-                                    onClick={() => {
-                                      setReaderBookId(src.book_id);
-                                      setReaderPageId(src.page_id);
-                                      setReaderHighlight(resp.searchQueryUsed);
-                                    }}
-                                    className="p-3 rounded-xl bg-black/15 border border-white/10 hover:border-[#d4af37]/50 cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-2 transition"
-                                  >
-                                    <div className="min-w-0 flex-1 space-y-1">
-                                      <h4 className="font-bold text-xs sm:text-sm text-[#d4af37] break-words leading-snug">
-                                        [{i + 1}] {src.book_name}
-                                      </h4>
-                                      <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-                                        <span className={`break-words ${themeClasses.mutedText}`}>{src.author_name}</span>
-                                        <span
-                                          className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                                            isPrinted
-                                              ? 'bg-emerald-500/15 text-emerald-400'
-                                              : 'bg-amber-500/15 text-amber-300'
-                                          }`}
-                                        >
-                                          {isPrinted ? 'موافق للمطبوع' : 'ترقيم آلي'}
-                                        </span>
-                                      </div>
-                                    </div>
-                                    <span className="self-end sm:self-auto px-2.5 py-1 rounded-lg bg-[#d4af37]/15 text-[#d4af37] font-bold text-xs shrink-0 flex items-center gap-1">
-                                      <Eye className="w-3.5 h-3.5" />
-                                      <span>
-                                        ج{src.part || 1} / ص{src.page_number}
-                                      </span>
-                                    </span>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Clickable Fatwa Sources Used */}
-                        {resp.fatawaSources.length > 0 && (
-                          <div className="pt-3 border-t border-white/10 space-y-2">
-                            <h3 className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
-                              <MessageSquareQuote className="w-4 h-4 shrink-0" />
-                              <span>الفتاوى التي استند إليها المساعد في الإجابة (اضغط لفتح الفتوى):</span>
-                            </h3>
-                            <div className="grid grid-cols-1 gap-2">
-                              {resp.fatawaSources.map((f) => (
-                                <div
-                                  key={f.fatwa_id}
-                                  onClick={() => setSelectedFatwaId(f.fatwa_id)}
-                                  className="p-3 rounded-xl bg-black/15 border border-white/10 hover:border-emerald-500/50 cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-2 transition"
-                                >
-                                  <div className="min-w-0 flex-1">
-                                    <h4 className="font-bold text-xs sm:text-sm text-emerald-400 break-words leading-snug">
-                                      {f.title}
-                                    </h4>
-                                    <p className={`text-[11px] mt-0.5 break-words ${themeClasses.mutedText}`}>
-                                      المفتي: {f.mufti}
-                                    </p>
-                                  </div>
-                                  <span className="self-end sm:self-auto px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-400 font-bold text-xs shrink-0">
-                                    فتوى #{f.fatwa_id}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {/* Live AI Thinking / Synthesizing Bubble inside the Thread */}
-                {aiLoading && (
-                  <div className={`p-4 rounded-2xl border flex items-center gap-3 ${themeClasses.cardBg}`}>
-                    <div className="w-8 h-8 rounded-xl bg-[#d4af37]/20 border border-[#d4af37]/40 flex items-center justify-center shrink-0">
-                      <Loader2 className="w-4 h-4 animate-spin text-[#d4af37]" />
-                    </div>
-                    <div className="space-y-0.5 min-w-0 flex-1">
-                      <div className="text-xs font-extrabold text-[#d4af37]">
-                        المساعد الذكي يقرأ مصادر الموسوعة ويصوغ الإجابة بأسلوبه...
-                      </div>
-                      <div className={`text-[11px] ${themeClasses.mutedText}`}>
-                        يتم الآن تحليل المتون والفتاوى ذات الصلة وتوليد شرح علمي متكامل وموثق
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Bottom Conversational Follow-Up Input Bar (Just like Gemini / Claude Chat) */}
-                {aiMessages.length > 0 && (
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      if (aiQuestion.trim() && !aiLoading) {
-                        handleAskAI();
+                {/* Chat Message Input + Send / Stop Button */}
+                <div className="flex items-end gap-2">
+                  <textarea
+                    rows={2}
+                    value={aiQuestion}
+                    onChange={(e) => setAiQuestion(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        if (aiQuestion.trim() && !aiLoading) {
+                          handleAskAI();
+                        }
                       }
                     }}
-                    className={`p-3 rounded-2xl border space-y-2.5 shadow-lg ${themeClasses.cardBg}`}
-                  >
-                    <div className="flex items-center justify-between gap-2 text-[11px]">
-                      <span className="font-bold text-[#d4af37] flex items-center gap-1.5">
-                        <Sparkles className="w-3.5 h-3.5 shrink-0" />
-                        <span>متابعة الحوار مع المساعد الذكي:</span>
-                      </span>
-                      {aiScopedBook && (
-                        <span className="text-[10px] opacity-80 truncate">
-                          في نطاق: {aiScopedBook.name}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                      <input
-                        type="text"
-                        value={aiQuestion}
-                        onChange={(e) => setAiQuestion(e.target.value)}
-                        placeholder="اكتب سؤال متابعة، أو اطلب توضيح نقطة، أو تحويل الإجابة لعرض/إنفوجرافيك..."
-                        className={`flex-1 min-w-0 w-full px-3.5 py-2.5 rounded-xl border text-xs sm:text-sm focus:border-[#d4af37] focus:outline-none ${themeClasses.inputBg}`}
-                      />
-                      <button
-                        type="submit"
-                        disabled={aiLoading || !aiQuestion.trim()}
-                        className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-gradient-to-l from-[#d4af37] to-[#b89225] text-black font-extrabold text-xs flex items-center justify-center gap-1.5 disabled:opacity-40 shrink-0 shadow-sm active:scale-95 transition"
-                      >
-                        {aiLoading ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Send className="w-4 h-4" />
-                        )}
-                        <span>إرسال في المحادثة</span>
-                      </button>
-                    </div>
-                  </form>
-                )}
-              </div>
-            )}
+                    placeholder={
+                      aiScopedBook
+                        ? `اسأل المساعد الذكي أي سؤال في كتاب «${aiScopedBook.name}»...`
+                        : 'اسأل المساعد الذكي أي سؤال... يصوغ لك الجواب بأسلوبه من الكتب والفتاوى'
+                    }
+                    className={`flex-1 min-w-0 w-full px-3.5 py-2.5 rounded-xl border text-xs sm:text-sm leading-relaxed focus:border-[#d4af37] focus:outline-none resize-none ${themeClasses.inputBg}`}
+                  />
+
+                  {aiLoading ? (
+                    <button
+                      type="button"
+                      onClick={handleStopAI}
+                      className="h-[52px] px-3.5 sm:px-4 rounded-xl bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 text-red-400 font-extrabold text-xs flex items-center justify-center gap-1.5 shrink-0 shadow-md active:scale-95 transition"
+                      title="إيقاف التوليد"
+                    >
+                      <Square className="w-4 h-4 fill-current" />
+                      <span className="hidden sm:inline">إيقاف</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="submit"
+                      disabled={!aiQuestion.trim()}
+                      className="h-[52px] px-4 sm:px-5 rounded-xl bg-gradient-to-l from-[#d4af37] to-[#b89225] text-black font-extrabold text-xs sm:text-sm flex items-center justify-center gap-1.5 disabled:opacity-40 shrink-0 shadow-md active:scale-95 transition"
+                    >
+                      <Send className="w-4 h-4" />
+                      <span>إرسال</span>
+                    </button>
+                  )}
+                </div>
+              </form>
+            </div>
           </main>
         )}
 

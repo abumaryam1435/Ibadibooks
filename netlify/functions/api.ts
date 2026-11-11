@@ -16,7 +16,9 @@ import {
 import catalogJson from '../../src/data/catalog.json';
 import { CatalogBook } from '../../src/types';
 
-const catalogBooks: CatalogBook[] = Array.isArray((catalogJson as any)?.books)
+const catalogBooks: CatalogBook[] = Array.isArray(catalogJson)
+  ? (catalogJson as CatalogBook[])
+  : Array.isArray((catalogJson as any)?.books)
   ? (catalogJson as any).books
   : [];
 

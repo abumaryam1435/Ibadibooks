@@ -172,6 +172,9 @@ export interface AIChatMessage {
   scopedBookName?: string;
   response?: AIResearchResponse;
   timestamp: number;
+  isStreaming?: boolean;
+  statusMessage?: string;
+  isStopped?: boolean;
 }
 
 export interface BookmarkItem {
