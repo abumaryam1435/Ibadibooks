@@ -18,6 +18,7 @@ import {
   Hand,
   Hash,
   ShieldCheck,
+  RotateCcw,
 } from 'lucide-react';
 import { BookPageData, PageSearchResult, AIChatMode } from '../types';
 import { copyTextToClipboard } from '../utils/clipboard';
@@ -70,6 +71,7 @@ export const BookReaderModal: React.FC<BookReaderModalProps> = ({
   const [loadingMeta, setLoadingMeta] = useState(false);
   const [fontSize, setFontSize] = useState<number>(21);
   const [copiedCitation, setCopiedCitation] = useState(false);
+  const [pageError, setPageError] = useState<string | null>(null);
 
   // Classical Arabic Tashkeel, Confirmed Typo Proofreading & Quranic Mushaf Preservation State (100% Local & Free)
   const [enableTashkeel, setEnableTashkeel] = useState<boolean>(true);
@@ -207,6 +209,7 @@ export const BookReaderModal: React.FC<BookReaderModalProps> = ({
     const cacheKey = `${bId}:${pId}`;
     const cached = pageCacheRef.current.get(cacheKey);
     if (cached) {
+      setPageError(null);
       setPageData(cached);
       setPageSearchInput(String(cached.page_id || pId));
       contentScrollRef.current?.scrollTo({ top: 0, behavior: 'auto' });
@@ -217,20 +220,67 @@ export const BookReaderModal: React.FC<BookReaderModalProps> = ({
     }
 
     setLoadingPage(true);
+    setPageError(null);
     try {
       const res = await apiFetch(`/api/page/${bId}/${pId}`);
       if (res.ok) {
         const data = await res.json();
-        pageCacheRef.current.set(cacheKey, data);
-        setPageData(data);
-        setPageSearchInput(String(data.page_id || pId));
-        contentScrollRef.current?.scrollTo({ top: 0, behavior: 'auto' });
-        resetPageSheetStyles();
-        prefetchAdjacentPage(bId, data.next_page_id);
-        prefetchAdjacentPage(bId, data.prev_page_id);
+        if (data && (data.body || data.book_name || data.page_id)) {
+          pageCacheRef.current.set(cacheKey, data);
+          setPageData(data);
+          setPageSearchInput(String(data.page_id || pId));
+          contentScrollRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+          resetPageSheetStyles();
+          prefetchAdjacentPage(bId, data.next_page_id);
+          prefetchAdjacentPage(bId, data.prev_page_id);
+          if (data.error_note && !data.body) {
+            setPageError(data.error_note);
+          }
+          return;
+        }
       }
+
+      // Graceful fallback from local catalog if server response is empty or network fails
+      const local = getLocalBookById(bId);
+      setPageError('تعذر جلب نص هذه الصفحة من خادم الموسوعة الإباضية حالياً.');
+      setPageData({
+        book_id: bId,
+        book_name: local?.title || `كتاب رقم ${bId}`,
+        author_name: local?.author || '',
+        category: local?.category || '',
+        page_id: pId,
+        page_number: pId,
+        part: '1',
+        numbering: 'sequential',
+        numbering_declared: 'ترقيم آلي متسلسل',
+        citable: false,
+        body: '',
+        foot: '',
+        next_page_id: pId < (local?.pagesCount || 100) ? pId + 1 : null,
+        prev_page_id: pId > 1 ? pId - 1 : null,
+      });
+      resetPageSheetStyles();
     } catch (err) {
-      console.error(err);
+      console.error('Error fetching page in BookReaderModal:', err);
+      const local = getLocalBookById(bId);
+      setPageError('تعذر الاتصال بخادم الموسوعة لجلب نص الصفحة.');
+      setPageData({
+        book_id: bId,
+        book_name: local?.title || `كتاب رقم ${bId}`,
+        author_name: local?.author || '',
+        category: local?.category || '',
+        page_id: pId,
+        page_number: pId,
+        part: '1',
+        numbering: 'sequential',
+        numbering_declared: 'ترقيم آلي متسلسل',
+        citable: false,
+        body: '',
+        foot: '',
+        next_page_id: pId < (local?.pagesCount || 100) ? pId + 1 : null,
+        prev_page_id: pId > 1 ? pId - 1 : null,
+      });
+      resetPageSheetStyles();
     } finally {
       setLoadingPage(false);
     }
@@ -513,12 +563,12 @@ export const BookReaderModal: React.FC<BookReaderModalProps> = ({
     return pageCacheRef.current.get(`${bookId}:${targetId}`) || null;
   }, [bookId, pageData, swipeDirState, cacheTick]);
 
-  // Ensure page sheet is always visible when pageData updates
+  // Ensure page sheet is always visible and perfectly aligned on tab or page changes
   useEffect(() => {
-    if (bookId && pageData) {
+    if (bookId) {
       resetPageSheetStyles();
     }
-  }, [bookId, pageData, currentPageId]);
+  }, [bookId, currentPageId, activeTab]);
 
   if (!bookId) return null;
 
@@ -1067,9 +1117,46 @@ export const BookReaderModal: React.FC<BookReaderModalProps> = ({
                     {pageData.body ? (
                       renderFormattedText(processedBody.text)
                     ) : (
-                      <p className="text-center opacity-60 py-12 text-sm">
-                        هذه الصفحة مصورة أو فارغة من النص المفرغ.
-                      </p>
+                      <div className={`p-6 sm:p-8 rounded-2xl border text-center space-y-3.5 my-4 ${themeCard}`}>
+                        <div className="w-12 h-12 mx-auto rounded-2xl bg-[#d4af37]/15 border border-[#d4af37]/30 flex items-center justify-center text-[#d4af37]">
+                          <BookOpen className="w-6 h-6" />
+                        </div>
+                        <div className="space-y-1">
+                          <h4 className="font-bold text-sm sm:text-base text-[#d4af37]">{bookTitle}</h4>
+                          <p className="text-xs opacity-75">
+                            صفحة {pageData?.page_number || currentPageId} {authorName ? `• ${authorName}` : ''}
+                          </p>
+                        </div>
+                        <p className="text-xs sm:text-sm opacity-85 max-w-md mx-auto leading-relaxed">
+                          {pageError || 'هذه الصفحة فارغة من النص المفرغ أو جاري استردادها من خادم الموسوعة.'}
+                        </p>
+                        <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+                          <button
+                            type="button"
+                            onClick={() => fetchPage(bookId, currentPageId)}
+                            className="px-3.5 py-2 rounded-xl bg-[#d4af37] text-black font-bold text-xs flex items-center gap-1.5 shadow-sm hover:brightness-110 active:scale-95 transition"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            <span>إعادة تحميل الصفحة</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setActiveTab('toc')}
+                            className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-xs font-bold flex items-center gap-1.5 transition"
+                          >
+                            <ListTree className="w-3.5 h-3.5 text-[#d4af37]" />
+                            <span>فتح فهرس الكتاب</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setActiveTab('info')}
+                            className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-xs font-bold flex items-center gap-1.5 transition"
+                          >
+                            <Info className="w-3.5 h-3.5 text-[#d4af37]" />
+                            <span>بطاقة الكتاب</span>
+                          </button>
+                        </div>
+                      </div>
                     )}
                   </div>
 
@@ -1089,8 +1176,40 @@ export const BookReaderModal: React.FC<BookReaderModalProps> = ({
                   )}
                 </div>
               ) : (
-                <div className="text-center py-16 opacity-60 text-sm">
-                  لم يتم العثور على نص لهذه الصفحة.
+                <div className={`p-6 sm:p-8 rounded-2xl border text-center space-y-3.5 my-8 ${themeCard}`}>
+                  <div className="w-12 h-12 mx-auto rounded-2xl bg-[#d4af37]/15 border border-[#d4af37]/30 flex items-center justify-center text-[#d4af37]">
+                    <BookOpen className="w-6 h-6" />
+                  </div>
+                  <h4 className="font-bold text-sm sm:text-base text-[#d4af37]">{bookTitle}</h4>
+                  <p className="text-xs sm:text-sm opacity-85 max-w-md mx-auto leading-relaxed">
+                    {pageError || 'جاري استرداد بيانات الكتاب والصفحات...'}
+                  </p>
+                  <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => fetchPage(bookId, currentPageId)}
+                      className="px-3.5 py-2 rounded-xl bg-[#d4af37] text-black font-bold text-xs flex items-center gap-1.5 shadow-sm hover:brightness-110 active:scale-95 transition"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>إعادة التحميل</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('toc')}
+                      className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-xs font-bold flex items-center gap-1.5 transition"
+                    >
+                      <ListTree className="w-3.5 h-3.5 text-[#d4af37]" />
+                      <span>فهرس الكتاب</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('info')}
+                      className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-xs font-bold flex items-center gap-1.5 transition"
+                    >
+                      <Info className="w-3.5 h-3.5 text-[#d4af37]" />
+                      <span>بطاقة الكتاب</span>
+                    </button>
+                  </div>
                 </div>
               )}
               </div>

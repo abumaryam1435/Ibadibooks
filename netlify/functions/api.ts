@@ -22,7 +22,15 @@ const catalogBooks: CatalogBook[] = Array.isArray(catalogJson)
   ? (catalogJson as any).books
   : [];
 
+const mcpCache = new Map<string, { data: any; timestamp: number }>();
+
 async function callIbadiMCP(toolName: string, args: Record<string, any>) {
+  const cacheKey = `${toolName}:${JSON.stringify(args)}`;
+  const cached = mcpCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < 1000 * 60 * 30) {
+    return cached.data;
+  }
+
   const payload = {
     jsonrpc: '2.0',
     id: Date.now(),
@@ -35,6 +43,7 @@ async function callIbadiMCP(toolName: string, args: Record<string, any>) {
 
   const response = await fetch('https://mcp.ibadi.net/mcp', {
     method: 'POST',
+    signal: AbortSignal.timeout(8000),
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json, text/event-stream',
@@ -54,7 +63,14 @@ async function callIbadiMCP(toolName: string, args: Record<string, any>) {
 
   const textContent = json.result?.content?.[0]?.text;
   if (!textContent) return {};
-  return JSON.parse(textContent);
+  const parsed = JSON.parse(textContent);
+
+  if (mcpCache.size > 500) {
+    const firstKey = mcpCache.keys().next().value;
+    if (firstKey) mcpCache.delete(firstKey);
+  }
+  mcpCache.set(cacheKey, { data: parsed, timestamp: Date.now() });
+  return parsed;
 }
 
 const corsHeaders = {
@@ -196,15 +212,19 @@ export async function handler(event: any) {
     return { statusCode: 200, headers: corsHeaders, body: '' };
   }
 
-  const rawPath = String(event.path || '')
+  let rawPath = String(event.path || '')
     .replace(/^\/\.netlify\/functions\/api/, '')
-    .replace(/^\/api/, '');
+    .replace(/^\/api/, '')
+    .replace(/\/+$/, '');
+  if (!rawPath.startsWith('/')) {
+    rawPath = '/' + rawPath;
+  }
   const query = event.queryStringParameters || {};
   const headers = event.headers || {};
 
   try {
     // 1. GET /book/:id
-    const bookMatch = rawPath.match(/^\/book\/(\d+)$/);
+    const bookMatch = rawPath.match(/^\/book\/(\d+)\/?$/);
     if (bookMatch && event.httpMethod === 'GET') {
       const bookId = parseInt(bookMatch[1], 10);
       const localBook = catalogBooks.find((b) => b.id === bookId) || null;
@@ -220,19 +240,50 @@ export async function handler(event: any) {
     }
 
     // 2. GET /page/:bookId/:pageId
-    const pageMatch = rawPath.match(/^\/page\/(\d+)\/(\d+)$/);
+    const pageMatch = rawPath.match(/^\/page\/(\d+)\/(\d+)\/?$/);
     if (pageMatch && event.httpMethod === 'GET') {
       const bookId = parseInt(pageMatch[1], 10);
       const pageId = parseInt(pageMatch[2], 10);
-      const pageData = await callIbadiMCP('ibadi_get_page', {
-        book_id: bookId,
-        page_id: pageId,
-        include_foot: true,
-      });
+      const localBook = catalogBooks.find((b) => b.id === bookId) || null;
+
+      try {
+        const pageData = await callIbadiMCP('ibadi_get_page', {
+          book_id: bookId,
+          page_id: pageId,
+          include_foot: true,
+        });
+        if (pageData && (pageData.body || pageData.book_name || pageData.page_id)) {
+          return {
+            statusCode: 200,
+            headers: corsHeaders,
+            body: JSON.stringify(pageData),
+          };
+        }
+      } catch {
+        // Fall through to graceful page object below
+      }
+
+      // Return a valid, well-formed page response so the reader never encounters 500 error or a black screen
       return {
         statusCode: 200,
         headers: corsHeaders,
-        body: JSON.stringify(pageData),
+        body: JSON.stringify({
+          book_id: bookId,
+          book_name: localBook?.title || `كتاب رقم ${bookId}`,
+          author_name: localBook?.author || '',
+          category: localBook?.category || '',
+          page_id: pageId,
+          page_number: pageId,
+          part: '1',
+          numbering: 'sequential',
+          numbering_declared: 'ترقيم آلي متسلسل',
+          citable: false,
+          body: '',
+          foot: '',
+          next_page_id: pageId < (localBook?.pagesCount || 100) ? pageId + 1 : null,
+          prev_page_id: pageId > 1 ? pageId - 1 : null,
+          error_note: 'تعذر جلب نص هذه الصفحة حالياً من خادم الموسوعة، يمكنك استعراض الفهرس أو تجربة صفحات أخرى.',
+        }),
       };
     }
 

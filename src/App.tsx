@@ -427,26 +427,59 @@ export default function App() {
         bookId: m.response?.matchedBook?.id || (m.scopedBookName ? bookToUse?.id : undefined),
       }));
 
-      const res = await fetch('/api/ai/ask/stream', {
-        method: 'POST',
-        headers,
-        signal: abortController.signal,
-        body: JSON.stringify({
-          question: q,
-          mode: modeToUse,
-          searchScope: bookToUse ? 'books' : aiScope,
-          bookId: bookToUse?.id,
-          preferredProvider,
-          history: historyPayload,
-        }),
-      });
-
-      if (!res.ok) {
-        throw new Error(`خطأ في استجابة الخادم: ${res.status}`);
+      let res: Response | null = null;
+      try {
+        res = await fetch('/api/ai/ask/stream', {
+          method: 'POST',
+          headers,
+          signal: abortController.signal,
+          body: JSON.stringify({
+            question: q,
+            mode: modeToUse,
+            searchScope: bookToUse ? 'books' : aiScope,
+            bookId: bookToUse?.id,
+            preferredProvider,
+            history: historyPayload,
+          }),
+        });
+      } catch {
+        res = null;
       }
 
-      if (!res.body) {
-        throw new Error('لا يوجد دفق بيانات من الخادم');
+      if (!res || !res.ok || !res.body) {
+        // Fallback to POST /api/ai/ask (which works on Netlify Functions and client bridge)
+        const fallbackRes = await apiFetch('/api/ai/ask', {
+          method: 'POST',
+          headers,
+          signal: abortController.signal,
+          body: JSON.stringify({
+            question: q,
+            mode: modeToUse,
+            searchScope: bookToUse ? 'books' : aiScope,
+            bookId: bookToUse?.id,
+            preferredProvider,
+            history: historyPayload,
+          }),
+        });
+        if (!fallbackRes.ok) {
+          throw new Error(`خطأ في استجابة الخادم: ${fallbackRes.status}`);
+        }
+        const data = await fallbackRes.json();
+        setAiResult(data);
+        setAiMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantMsgId
+              ? {
+                  ...m,
+                  content: data.answer,
+                  isStreaming: false,
+                  statusMessage: undefined,
+                  response: data,
+                }
+              : m
+          )
+        );
+        return;
       }
 
       const reader = res.body.getReader();

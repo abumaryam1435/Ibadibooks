@@ -238,6 +238,29 @@ app.get('/api/page/:bookId/:pageId', async (req, res) => {
   }
 });
 
+// Proxy route matching Netlify /ibadi-proxy/* redirect rule
+app.all('/ibadi-proxy/*', async (req, res) => {
+  const targetSubPath = (req.params as any)[0] || 'mcp';
+  try {
+    const upstreamRes = await fetch(`https://mcp.ibadi.net/${targetSubPath}`, {
+      method: req.method,
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json, text/event-stream',
+        'User-Agent': 'IbadiEncyclopediaProxy/3.0',
+      },
+      body: ['POST', 'PUT', 'PATCH'].includes(req.method) ? JSON.stringify(req.body) : undefined,
+    });
+    const data = await upstreamRes.text();
+    res
+      .status(upstreamRes.status)
+      .header('Content-Type', upstreamRes.headers.get('content-type') || 'application/json')
+      .send(data);
+  } catch (err: any) {
+    res.status(502).json({ error: err.message || 'خطأ في الاتصال بخادم الموسوعة' });
+  }
+});
+
 // Helper: Score and sort search results so paragraphs gathering all search words come first,
 // ordered from closest word proximity (الأقرب فالأقرب) to broader matches.
 function scoreAndRankByProximity(
