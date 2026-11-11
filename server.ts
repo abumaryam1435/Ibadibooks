@@ -864,7 +864,7 @@ async function prepareScholarlyRAGContext(body: any, onStatus?: (status: string)
         )
       : [];
 
-  const [bookMetaAndToc, tokensResult, titlesResult, fatawaResult, ...facetResults] =
+  const [bookMetaAndToc, nearResult, tokensResult, titlesResult, fatawaResult, ...facetResults] =
     await Promise.all([
       matchedBook
         ? Promise.all([
@@ -874,6 +874,15 @@ async function prepareScholarlyRAGContext(body: any, onStatus?: (status: string)
             callIbadiMCP('ibadi_get_toc', { book_id: matchedBook.id, depth: 3 }).catch(() => null),
           ]).then(([details, toc]) => ({ details, toc }))
         : Promise.resolve(null),
+
+      (searchScope !== 'fatawa' || matchedBook) && queryToRun.trim().split(/\s+/).length >= 2
+        ? callIbadiMCP('ibadi_search_pages', {
+            query: queryToRun,
+            match: { mode: 'near', distance: 5, morphology: false },
+            limit: 8,
+            ...(scopeFilter ? { scope: scopeFilter } : {}),
+          }).catch(() => ({ results: [], total_hits: 0 }))
+        : Promise.resolve({ results: [], total_hits: 0 }),
 
       (searchScope !== 'fatawa' || matchedBook) && coreTerms.length > 0
         ? callIbadiMCP('ibadi_search_pages', {
@@ -954,7 +963,8 @@ async function prepareScholarlyRAGContext(body: any, onStatus?: (status: string)
     }
   }
 
-  // Add facet results first so foundational chapters on the topic are well represented
+  // Add near-phrase and facet results first so foundational chapters on the topic are well represented
+  for (const h of nearResult?.results || []) addPageHit(h);
   for (const res of facetResults) {
     for (const h of (res as any)?.results || []) addPageHit(h);
   }

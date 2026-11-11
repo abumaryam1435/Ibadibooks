@@ -595,10 +595,10 @@ export async function handler(event: any) {
               : [];
 
           const [nearResult, tokensResult, titlesResult, ...facetResults] = await Promise.all([
-            coreTerms.length >= 2
+            queryToRun.trim().split(/\s+/).length >= 2
               ? callIbadiMCP('ibadi_search_pages', {
                   query: queryToRun,
-                  match: { mode: 'near', distance: 12, morphology: false },
+                  match: { mode: 'near', distance: 5, morphology: false },
                   limit: 8,
                   ...(scopeFilter ? { scope: scopeFilter } : {}),
                 }).catch(() => ({ results: [], total_hits: 0 }))

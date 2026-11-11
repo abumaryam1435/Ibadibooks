@@ -312,7 +312,15 @@ async function handleClientSideApi(urlStr: string, init?: RequestInit): Promise<
         : [];
 
     // Run book pages search, facet searches, and fatawa search in parallel
-    const [tokensRes, fRes, ...facetResList] = await Promise.all([
+    const [nearRes, tokensRes, fRes, ...facetResList] = await Promise.all([
+      (searchScope !== 'fatawa' || matchedBook) && queryToRun.trim().split(/\s+/).length >= 2
+        ? callIbadiMCPClient('ibadi_search_pages', {
+            query: queryToRun,
+            match: { mode: 'near', distance: 5, morphology: false },
+            limit: 8,
+            ...(scopeFilter ? { scope: scopeFilter } : {}),
+          }).catch(() => ({ results: [], total_hits: 0 }))
+        : Promise.resolve({ results: [], total_hits: 0 }),
       (searchScope !== 'fatawa' || matchedBook) && coreTerms.length > 0
         ? callIbadiMCPClient('ibadi_search_pages', {
             query: queryToRun,
@@ -352,6 +360,7 @@ async function handleClientSideApi(urlStr: string, init?: RequestInit): Promise<
       }
     };
 
+    for (const h of nearRes?.results || []) addPageHit(h);
     for (const r of facetResList) {
       for (const h of (r as any)?.results || []) addPageHit(h);
     }
